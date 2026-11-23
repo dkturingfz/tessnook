@@ -1,0 +1,133 @@
+// 画布适配层：把业务对象转换成 React Flow 节点。业务数据不依赖 React Flow 的节点格式。
+import type { Node } from '@xyflow/react';
+import type { EventPkg, ID, Quadrant, Region, Stack } from '../domain/types';
+import type { PresenceState } from '../data';
+import type { Density } from '../store/store';
+
+export interface RegionNodeData extends Record<string, unknown> {
+  region: Region;
+  highlight: Quadrant | null;
+  canEdit: boolean;
+  counts: Record<Quadrant, number>;
+}
+export interface EventNodeData extends Record<string, unknown> {
+  event: EventPkg;
+  progress: { done: number; total: number };
+  viewers: PresenceState[];
+  density: Density;
+  isOpen: boolean;
+}
+export interface StackNodeData extends Record<string, unknown> {
+  stack: Stack;
+  members: EventPkg[];
+  expanded: boolean;
+  canEdit: boolean;
+}
+export interface DraftNodeData extends Record<string, unknown> {
+  onSubmit(title: string): void;
+  onCancel(): void;
+}
+
+export type AppNode =
+  | Node<RegionNodeData, 'region'>
+  | Node<EventNodeData, 'event'>
+  | Node<StackNodeData, 'stack'>
+  | Node<DraftNodeData, 'draft'>;
+
+export interface BuildInput {
+  regions: Record<ID, Region>;
+  events: Record<ID, EventPkg>;
+  stacks: Record<ID, Stack>;
+  progress: Map<ID, { done: number; total: number }>;
+  presence: PresenceState[];
+  myId: ID | undefined;
+  density: Density;
+  canEdit: boolean;
+  hover: { region_id: ID | null; quadrant: Quadrant | null } | null;
+  expandedStack: ID | null;
+  openEventId: ID | null;
+}
+
+export function buildNodes(i: BuildInput): AppNode[] {
+  const out: AppNode[] = [];
+  const active = Object.values(i.events).filter((e) => !e.archived_at);
+
+  for (const r of Object.values(i.regions)) {
+    const counts: Record<Quadrant, number> = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
+    for (const e of active) if (e.region_id === r.id && e.quadrant) counts[e.quadrant]++;
+    out.push({
+      id: r.id,
+      type: 'region',
+      position: { x: r.x, y: r.y },
+      width: r.width,
+      height: r.height,
+      zIndex: 0,
+      selectable: false,
+      draggable: i.canEdit,
+      dragHandle: '.region-drag',
+      // 区域主体不拦截指针：在区域内可以平移画布、框选、双击创建
+      style: { pointerEvents: 'none' },
+      data: {
+        region: r,
+        canEdit: i.canEdit,
+        counts,
+        highlight: i.hover?.region_id === r.id ? i.hover.quadrant : null,
+      },
+    });
+  }
+
+  const viewersOf = (id: ID) => i.presence.filter((p) => p.open_event_id === id && p.user_id !== i.myId);
+
+  for (const e of active) {
+    if (e.stack_id) continue;
+    out.push({
+      id: e.id,
+      type: 'event',
+      position: { x: e.x, y: e.y },
+      zIndex: 10,
+      draggable: i.canEdit,
+      data: {
+        event: e,
+        progress: i.progress.get(e.id) ?? { done: 0, total: 0 },
+        viewers: viewersOf(e.id),
+        density: i.density,
+        isOpen: i.openEventId === e.id,
+      },
+    });
+  }
+
+  for (const s of Object.values(i.stacks)) {
+    const members = active
+      .filter((e) => e.stack_id === s.id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    if (members.length === 0) continue;
+    out.push({
+      id: s.id,
+      type: 'stack',
+      position: { x: s.x, y: s.y },
+      zIndex: i.expandedStack === s.id ? 1000 : 10,
+      draggable: i.canEdit,
+      data: { stack: s, members, expanded: i.expandedStack === s.id, canEdit: i.canEdit },
+    });
+  }
+  return out;
+}
+
+/**
+ * 把新构建的节点与 React Flow 当前节点合并：
+ * 保留选择状态；正在拖拽/缩放的节点保留其本地位置，避免远端更新打断操作。
+ */
+export function mergeNodes(prev: AppNode[], next: AppNode[], busy: Set<ID>): AppNode[] {
+  const old = new Map(prev.map((n) => [n.id, n]));
+  return next.map((n) => {
+    const p = old.get(n.id);
+    if (!p) return n;
+    const keep = busy.has(n.id) || p.dragging;
+    return {
+      ...n,
+      selected: p.selected,
+      ...(keep ? { position: p.position, width: p.width, height: p.height } : {}),
+      measured: p.measured,
+    } as AppNode;
+  });
+}
