@@ -1,3 +1,5 @@
+<p align="center"><img src="public/tessnook.svg" width="96" alt="Tessnook" /></p>
+
 # Tessnook
 
 *A spatial board for priorities and work* · 空间化协作看板

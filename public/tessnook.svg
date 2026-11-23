@@ -1,0 +1,16 @@
+<svg width="256" height="256" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer rounded container -->
+  <rect x="10" y="10" width="108" height="108" rx="28" stroke="#2F3B3A" stroke-width="4" fill="white"></rect>
+
+  <!-- Top-left tile -->
+  <rect x="24" y="24" width="30" height="30" rx="8" fill="#7FAEA6"></rect>
+
+  <!-- Top-right tile -->
+  <rect x="74" y="24" width="30" height="30" rx="8" fill="#A9C2D9"></rect>
+
+  <!-- Bottom-left tile -->
+  <rect x="24" y="74" width="30" height="30" rx="8" fill="#C8B9D8"></rect>
+
+  <!-- Bottom-right tile -->
+  <rect x="74" y="74" width="30" height="30" rx="8" fill="#E4BE95"></rect>
+</svg>

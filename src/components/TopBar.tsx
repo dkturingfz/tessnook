@@ -28,7 +28,7 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
     <header className="topbar">
       <div className="menu-anchor">
         <button className="ws-switch" onClick={() => setWsMenu(!wsMenu)} data-testid="ws-switch">
-          <span className="logo">◱</span>
+          <img className="logo" src="/tessnook.svg" alt="" />
           <strong>{workspace.name}</strong>
           <span className="role-tag">{roleName(role)}</span>
           <ChevronDown size={14} />
