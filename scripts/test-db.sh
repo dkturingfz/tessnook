@@ -8,5 +8,5 @@ psql "$PGURL" -q -c "drop database if exists $DB" -c "create database $DB"
 BASE="${PGURL%%\?*}"; QUERY="${PGURL#"$BASE"}"
 TEST_URL="${BASE%/*}/$DB$QUERY"
 psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f supabase/tests/auth_stub.sql
-psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f supabase/migrations/20261123000000_init.sql
+for f in supabase/migrations/*.sql; do psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f "$f"; done
 psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f supabase/tests/rls_and_rpc.test.sql

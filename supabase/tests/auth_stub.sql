@@ -11,6 +11,5 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
 end $$;
 grant usage on schema public, auth to anon, authenticated;
-alter default privileges in schema public grant all on tables to authenticated;
-alter default privileges in schema public grant all on sequences to authenticated;
-alter default privileges in schema public grant execute on functions to authenticated;
+-- 注意：新建的 Supabase 项目不再自动给 anon/authenticated 授予 public 下新表的权限，
+-- 这里同样不设默认授权，迁移必须显式 GRANT。
