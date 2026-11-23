@@ -13,7 +13,7 @@ import {
   type User,
   type Workspace,
   type WorkspaceWithRole,
-} from '../domain/types';
+} from '../../domain/types';
 import {
   ConflictError,
   PermissionError,
@@ -22,7 +22,7 @@ import {
   type RealtimeHandlers,
   type Repo,
   type Subscription,
-} from './repo';
+} from '../repo';
 
 function fail(error: { code?: string; message: string } | null): never | void {
   if (!error) return;
@@ -32,11 +32,17 @@ function fail(error: { code?: string; message: string } | null): never | void {
 }
 
 export class SupabaseRepo implements Repo {
-  readonly mode = 'supabase' as const;
+  readonly info = { label: '云端', storage: 'cloud' } as const;
   private sb: SupabaseClient;
 
-  constructor(url: string, anonKey: string) {
-    this.sb = createClient(url, anonKey);
+  /** persistSession=false 用于测试或服务端场景：同一进程中可并存多个独立登录会话 */
+  constructor(url: string, anonKey: string, opts: { persistSession?: boolean } = {}) {
+    const persist = opts.persistSession ?? true;
+    this.sb = createClient(url, anonKey, {
+      auth: persist
+        ? { persistSession: true, autoRefreshToken: true }
+        : { persistSession: false, autoRefreshToken: false, storageKey: `tessnook-${crypto.randomUUID()}` },
+    });
   }
 
   // ———————————————————— 账户 ————————————————————
@@ -95,8 +101,9 @@ export class SupabaseRepo implements Repo {
 
   async loadSnapshot(workspaceId: ID): Promise<Snapshot> {
     const { data: auth } = await this.sb.auth.getUser();
-    const ws = await this.sb.from('workspaces').select('*').eq('id', workspaceId).single();
+    const ws = await this.sb.from('workspaces').select('*').eq('id', workspaceId).maybeSingle();
     fail(ws.error);
+    if (!ws.data) throw new PermissionError('你不是该工作空间的成员');
     const members = await this.sb
       .from('workspace_members')
       .select('workspace_id, user_id, role, profiles(display_name, email)')
@@ -149,8 +156,12 @@ export class SupabaseRepo implements Repo {
     const { data, error } = await this.sb
       .from(table).update(safe).eq('id', id).eq('version', expectedVersion).select();
     fail(error);
-    if (!data || data.length === 0) throw new ConflictError();
-    return data[0] as TableRows[T];
+    if (data && data.length > 0) return data[0] as TableRows[T];
+    // 0 行更新有两种原因，需要区分以符合契约：版本已变化（冲突）或 RLS 拒绝（无权限/不可见）
+    const { data: cur } = await this.sb.from(table).select('version').eq('id', id).maybeSingle();
+    if (cur && cur.version !== expectedVersion) throw new ConflictError();
+    if (!cur) throw new ConflictError('对象不存在或已被删除');
+    throw new PermissionError();
   }
 
   async remove(table: TableName, id: ID) {
@@ -246,7 +257,8 @@ export class SupabaseRepo implements Repo {
     });
 
     const onOnline = () => h.onResync();
-    window.addEventListener('online', onOnline);
+    const win = typeof window !== 'undefined' ? window : null;
+    win?.addEventListener('online', onOnline);
 
     return {
       track: (state) => {
@@ -254,7 +266,7 @@ export class SupabaseRepo implements Repo {
         channel.track(state);
       },
       close: () => {
-        window.removeEventListener('online', onOnline);
+        win?.removeEventListener('online', onOnline);
         this.sb.removeChannel(channel);
       },
     };

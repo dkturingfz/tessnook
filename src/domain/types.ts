@@ -158,3 +158,10 @@ export const QUADRANT_META: Record<Quadrant, { label: string; hint: string }> = 
   Q3: { label: '不重要 · 不紧急', hint: '有空再做' },
   Q4: { label: '不重要 · 紧急', hint: '尽量委派' },
 };
+
+/** 在线状态：谁在线、正在查看哪个事件包（个人界面状态，不持久化） */
+export interface PresenceState {
+  user_id: ID;
+  display_name: string;
+  open_event_id: ID | null;
+}

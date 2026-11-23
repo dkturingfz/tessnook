@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { repo } from './data';
 import { useStore } from './store/store';
 import { Canvas } from './canvas/Canvas';
 import { BoardPanel } from './board/BoardPanel';
@@ -37,9 +36,7 @@ export function App() {
     const token = sessionStorage.getItem(INVITE_KEY);
     if (token) {
       sessionStorage.removeItem(INVITE_KEY);
-      repo.acceptInvitation(token)
-        .then(async (wsId) => { await s.refreshWorkspaces(); await s.openWorkspace(wsId); s.toast('已加入工作空间', 'success'); })
-        .catch((e) => s.toast(`邀请：${e.message}`, 'error'));
+      s.acceptInvitation(token);
       return;
     }
     let last: string | undefined;

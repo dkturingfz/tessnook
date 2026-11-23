@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  type Activity,
   type BoardList,
   type ChangeSet,
   type ChecklistItem,
@@ -7,6 +8,7 @@ import {
   type ID,
   type ItemMove,
   type Member,
+  type PresenceState,
   type Quadrant,
   type Region,
   type Role,
@@ -19,7 +21,9 @@ import {
   type WorkspaceWithRole,
 } from '../domain/types';
 import { positionBetween } from '../domain/layout';
-import { ConflictError, repo, type PresenceState, type Subscription } from '../data';
+import { can, validateStack, type Action } from '../domain/rules';
+// 只依赖后端契约（接口与错误类型），不依赖任何具体实现
+import { ConflictError, type BackendInfo, type Repo, type Subscription } from '../data/repo';
 
 type Rows<T> = Record<ID, T>;
 export type PanelMode = 'standard' | 'wide' | 'focus';
@@ -65,6 +69,7 @@ function savePrefs(p: Partial<ReturnType<typeof loadPrefs>>) {
 }
 
 export interface AppState extends Data {
+  backend: BackendInfo | null;
   user: User | null;
   authChecked: boolean;
   workspaces: WorkspaceWithRole[];
@@ -91,7 +96,16 @@ export interface AppState extends Data {
   refreshWorkspaces(): Promise<void>;
   openWorkspace(id: ID): Promise<void>;
   createWorkspace(name: string): Promise<void>;
+  renameWorkspace(name: string): Promise<void>;
+  deleteWorkspace(): Promise<void>;
   resync(): Promise<void>;
+
+  // 成员与活动
+  inviteMember(email: string | null, role: Role): Promise<string | null>;
+  acceptInvitation(token: string): Promise<void>;
+  setMemberRole(userId: ID, role: Role): Promise<void>;
+  removeMember(userId: ID): Promise<void>;
+  listActivity(limit: number): Promise<Activity[]>;
 
   // 界面
   openEvent(id: ID | null): void;
@@ -127,7 +141,18 @@ export interface AppState extends Data {
   addChecklistItem(taskId: ID, text: string): Promise<void>;
 }
 
+let repo: Repo | null = null;
 let sub: Subscription | null = null;
+
+/** 由组合根（main.tsx）在启动时注入后端实现 */
+export function configureBackend(r: Repo) {
+  repo = r;
+  useStore.setState({ backend: r.info });
+}
+function backend(): Repo {
+  if (!repo) throw new Error('后端尚未配置：请先调用 configureBackend()');
+  return repo;
+}
 let toastSeq = 1;
 let resyncTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -141,9 +166,9 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 
 export const useStore = create<AppState>((set, get) => {
   /** 统一的写操作包装：乐观更新失败时提示并以服务端数据校准 */
-  async function mutate<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
-    if (get().role === 'viewer') {
-      get().toast('当前为只读（Viewer）身份', 'error');
+  async function mutate<T>(label: string, fn: () => Promise<T>, action: Action = 'edit'): Promise<T | null> {
+    if (!can(get().role, action)) {
+      get().toast(get().role === 'viewer' ? '当前为只读（Viewer）身份' : '没有执行该操作的权限', 'error');
       return null;
     }
     set((s) => ({ pendingOps: s.pendingOps + 1 }));
@@ -183,7 +208,7 @@ export const useStore = create<AppState>((set, get) => {
 
   function subscribeWorkspace(ws: ID) {
     sub?.close();
-    sub = repo.subscribe(ws, {
+    sub = backend().subscribe(ws, {
       onChange: (cs) => get().apply(cs),
       onResync: () => {
         // 合并短时间内的多次校准请求
@@ -217,6 +242,7 @@ export const useStore = create<AppState>((set, get) => {
 
   return {
     ...emptyData(),
+    backend: null,
     user: null,
     authChecked: false,
     workspaces: [],
@@ -237,19 +263,19 @@ export const useStore = create<AppState>((set, get) => {
     // ———————————————— 账户 / 空间 ————————————————
 
     async init() {
-      const user = await repo.currentUser().catch(() => null);
+      const user = await backend().currentUser().catch(() => null);
       set({ user, authChecked: true });
       if (user) await get().refreshWorkspaces();
     },
 
     async signIn(email, password) {
-      const user = await repo.signIn(email, password);
+      const user = await backend().signIn(email, password);
       set({ user });
       await get().refreshWorkspaces();
     },
 
     async signUp(email, password, name) {
-      const user = await repo.signUp(email, password, name);
+      const user = await backend().signUp(email, password, name);
       set({ user });
       await get().refreshWorkspaces();
     },
@@ -257,19 +283,19 @@ export const useStore = create<AppState>((set, get) => {
     async signOut() {
       sub?.close();
       sub = null;
-      await repo.signOut();
+      await backend().signOut();
       set({ user: null, workspace: null, workspaces: [], role: null, ...emptyData(), openEventId: null });
     },
 
     async refreshWorkspaces() {
-      const workspaces = await repo.listWorkspaces();
+      const workspaces = await backend().listWorkspaces();
       set({ workspaces });
     },
 
     async openWorkspace(id) {
       set({ loading: true, openEventId: null, layoutHistory: [] });
       try {
-        const snap = await repo.loadSnapshot(id);
+        const snap = await backend().loadSnapshot(id);
         const byId = <T extends { id: ID }>(rows: T[]) => Object.fromEntries(rows.map((r) => [r.id, r]));
         set({
           workspace: snap.workspace,
@@ -292,16 +318,70 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async createWorkspace(name) {
-      const ws = await repo.createWorkspace(name);
+      const ws = await backend().createWorkspace(name);
       await get().refreshWorkspaces();
       await get().openWorkspace(ws.id);
+    },
+
+    async renameWorkspace(name) {
+      const ws = get().workspace!;
+      await mutate('重命名', () => backend().renameWorkspace(ws.id, name), 'renameWorkspace');
+      await get().refreshWorkspaces();
+      await get().resync();
+    },
+
+    async deleteWorkspace() {
+      const ws = get().workspace!;
+      const ok = await mutate('删除工作空间', async () => { await backend().deleteWorkspace(ws.id); return true; }, 'deleteWorkspace');
+      if (!ok) return;
+      sub?.close();
+      sub = null;
+      // 先刷新列表再清空当前空间，避免“自动打开上次空间”的逻辑看到已删除的空间
+      await get().refreshWorkspaces();
+      set({ workspace: null, role: null, ...emptyData(), openEventId: null });
+    },
+
+    async inviteMember(email, role) {
+      const ws = get().workspace!;
+      return mutate('邀请', () => backend().inviteMember(ws.id, email, role), 'manageMembers');
+    },
+
+    async acceptInvitation(token) {
+      try {
+        const wsId = await backend().acceptInvitation(token);
+        await get().refreshWorkspaces();
+        await get().openWorkspace(wsId);
+        get().toast('已加入工作空间', 'success');
+      } catch (e) {
+        get().toast(`邀请：${(e as Error).message}`, 'error');
+      }
+    },
+
+    async setMemberRole(userId, role) {
+      const ws = get().workspace!;
+      await mutate('调整角色', () => backend().setMemberRole(ws.id, userId, role), 'manageMembers');
+      await get().resync();
+    },
+
+    async removeMember(userId) {
+      const ws = get().workspace!;
+      const self = userId === get().user?.id;
+      // 成员可以自行退出；移除他人需要管理权限
+      await mutate(self ? '退出' : '移除成员', () => backend().removeMember(ws.id, userId), self ? 'view' : 'manageMembers');
+      await get().resync();
+    },
+
+    async listActivity(limit) {
+      const ws = get().workspace;
+      if (!ws) return [];
+      return backend().listActivity(ws.id, limit);
     },
 
     async resync() {
       const ws = get().workspace;
       if (!ws) return;
       try {
-        const snap = await repo.loadSnapshot(ws.id);
+        const snap = await backend().loadSnapshot(ws.id);
         const byId = <T extends { id: ID }>(rows: T[]) => Object.fromEntries(rows.map((r) => [r.id, r]));
         set((s) => ({
           workspace: snap.workspace,
@@ -377,7 +457,7 @@ export const useStore = create<AppState>((set, get) => {
       patchLocal(table, id, patch);
       await mutate('保存', async () => {
         const latest = (get()[table] as Rows<any>)[id];
-        const row = await repo.update(table, id, patch, latest.version);
+        const row = await backend().update(table, id, patch, latest.version);
         get().apply({ upserts: [{ table, row }], deletes: [] });
       });
     },
@@ -385,7 +465,7 @@ export const useStore = create<AppState>((set, get) => {
     async insertRow(table, row) {
       const ws = get().workspace!;
       return mutate('创建', async () => {
-        const created = await repo.insert(table, { ...row, workspace_id: ws.id } as any);
+        const created = await backend().insert(table, { ...row, workspace_id: ws.id } as any);
         get().apply({ upserts: [{ table, row: created }], deletes: [] });
         return created;
       });
@@ -393,15 +473,15 @@ export const useStore = create<AppState>((set, get) => {
 
     async removeRow(table, id) {
       await mutate('删除', async () => {
-        await repo.remove(table, id);
+        await backend().remove(table, id);
         await get().resync(); // 删除会级联，直接以快照校准
-      });
+      }, table === 'events' || table === 'regions' ? 'deleteEvent' : 'edit');
     },
 
     async createEvent(title, x, y, region_id, quadrant) {
       const ws = get().workspace!;
       const cs = await mutate('创建事件包', () =>
-        repo.createEvent({ workspace_id: ws.id, title, x, y, region_id, quadrant, with_default_lists: true }),
+        backend().createEvent({ workspace_id: ws.id, title, x, y, region_id, quadrant, with_default_lists: true }),
       );
       if (!cs) return null;
       get().apply(cs);
@@ -420,18 +500,18 @@ export const useStore = create<AppState>((set, get) => {
           x: m.x, y: m.y, region_id: m.region_id, quadrant: m.region_id ? m.quadrant : null,
         });
       }
-      const cs = await mutate('移动', () => repo.moveItems(ws.id, moves));
+      const cs = await mutate('移动', () => backend().moveItems(ws.id, moves));
       if (cs) get().apply(cs);
     },
 
     async moveRegion(id, x, y, version) {
       patchLocal('regions', id, { x, y });
-      const cs = await mutate('移动区域', () => repo.moveRegion(id, x, y, version));
+      const cs = await mutate('移动区域', () => backend().moveRegion(id, x, y, version));
       if (cs) get().apply(cs);
     },
 
     async deleteRegion(id) {
-      const cs = await mutate('删除区域', () => repo.deleteRegion(id));
+      const cs = await mutate('删除区域', () => backend().deleteRegion(id), 'deleteRegion');
       if (cs) get().apply(cs);
     },
 
@@ -442,12 +522,17 @@ export const useStore = create<AppState>((set, get) => {
 
     async createStack(eventIds) {
       const ws = get().workspace!;
-      const cs = await mutate('堆叠', () => repo.createStack(ws.id, eventIds, null));
+      const problem = validateStack(eventIds.map((id) => get().events[id]).filter(Boolean));
+      if (problem) {
+        get().toast(`堆叠失败：${problem}`, 'error');
+        return;
+      }
+      const cs = await mutate('堆叠', () => backend().createStack(ws.id, eventIds, null));
       if (cs) get().apply(cs);
     },
 
     async unstack(stackId) {
-      const cs = await mutate('解除堆叠', () => repo.unstack(stackId));
+      const cs = await mutate('解除堆叠', () => backend().unstack(stackId));
       if (cs) get().apply(cs);
     },
 
@@ -459,7 +544,7 @@ export const useStore = create<AppState>((set, get) => {
       const e = get().events[id];
       if (!e) return;
       patchLocal('events', id, { archived_at: new Date().toISOString() });
-      const cs = await mutate('归档', () => repo.archiveEvent(id, e.version, complete));
+      const cs = await mutate('归档', () => backend().archiveEvent(id, e.version, complete), 'archive');
       if (cs) {
         get().apply(cs);
         if (get().openEventId === id) get().openEvent(null);
@@ -468,7 +553,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async restoreEvent(id) {
-      const cs = await mutate('恢复', () => repo.restoreEvent(id));
+      const cs = await mutate('恢复', () => backend().restoreEvent(id), 'archive');
       if (cs) {
         get().apply(cs);
         get().focusEvent(id);
@@ -526,7 +611,7 @@ export const useStore = create<AppState>((set, get) => {
       patchLocal('tasks', taskId, { list_id: listId, position });
       const cs = await mutate('移动任务', () => {
         const latest = get().tasks[taskId];
-        return repo.moveTask(taskId, listId, position, latest.version);
+        return backend().moveTask(taskId, listId, position, latest.version);
       });
       if (cs) get().apply(cs);
     },
@@ -543,7 +628,8 @@ export const useStore = create<AppState>((set, get) => {
 });
 
 // —— 常用派生查询 ——
-export const canEdit = (s: AppState) => s.role === 'owner' || s.role === 'editor';
+export const canEdit = (s: AppState) => can(s.role, 'edit');
+export const canDo = (action: Action) => (s: AppState) => can(s.role, action);
 
 export function eventProgress(s: Pick<AppState, 'tasks'>, eventId: ID) {
   let total = 0;

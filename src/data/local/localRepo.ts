@@ -16,8 +16,9 @@ import {
   type User,
   type Workspace,
   type WorkspaceWithRole,
-} from '../domain/types';
-import { fanOut } from '../domain/layout';
+} from '../../domain/types';
+import { fanOut } from '../../domain/layout';
+import { can, validateStack, type Action } from '../../domain/rules';
 import {
   ConflictError,
   PermissionError,
@@ -26,7 +27,7 @@ import {
   type RealtimeHandlers,
   type Repo,
   type Subscription,
-} from './repo';
+} from '../repo';
 
 interface Invitation {
   token: string;
@@ -85,16 +86,29 @@ type RtMessage =
   | { type: 'change'; workspace_id: ID; revision: number; cs: ChangeSet }
   | { type: 'members'; workspace_id: ID };
 
+/** 当前登录身份的存放处。浏览器中默认用 sessionStorage（每个标签页可登录不同账户）；测试中可注入内存实现。 */
+export type SessionStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
 export class LocalRepo implements Repo {
-  readonly mode = 'local' as const;
+  readonly info = { label: '本地模式', storage: 'browser' } as const;
+  private session: SessionStore;
+
+  constructor(opts: { session?: SessionStore } = {}) {
+    this.session = opts.session ?? sessionStorage;
+  }
   private rt = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(RT_CHANNEL) : null;
   /** 本标签页自己写入后各工作空间的修订号，用于区分“自己的写入”与“丢失的消息” */
   private ownRevision = new Map<ID, number>();
 
+  /** 释放广播通道（测试或热重载时使用） */
+  dispose() {
+    this.rt?.close();
+  }
+
   // ———————————————————— 内部工具 ————————————————————
 
   private uid(): ID {
-    const id = sessionStorage.getItem(SESSION_KEY);
+    const id = this.session.getItem(SESSION_KEY);
     if (!id) throw new PermissionError('请先登录');
     return id;
   }
@@ -104,10 +118,9 @@ export class LocalRepo implements Repo {
     return db.members.find((m) => m.workspace_id === ws && m.user_id === uid)?.role ?? null;
   }
 
-  private requireRole(db: DB, ws: ID, min: 'viewer' | 'editor' | 'owner') {
-    const r = this.role(db, ws);
-    const rank = { viewer: 1, editor: 2, owner: 3 } as const;
-    if (!r || rank[r] < rank[min]) throw new PermissionError();
+  /** 按 domain/rules 的权限矩阵检查 */
+  private require(db: DB, ws: ID, action: Action) {
+    if (!can(this.role(db, ws), action)) throw new PermissionError();
   }
 
   /** 读-改-写事务：fn 中修改 db 并返回变更集，统一提升修订号并广播 */
@@ -132,7 +145,7 @@ export class LocalRepo implements Repo {
 
   private log(db: DB, ws: ID, action: string, entity_type: string, entity_id: ID, summary: string) {
     db.activity.push({
-      id: uuid(), workspace_id: ws, actor_id: sessionStorage.getItem(SESSION_KEY),
+      id: uuid(), workspace_id: ws, actor_id: this.session.getItem(SESSION_KEY),
       action, entity_type, entity_id, summary, created_at: now(),
     });
   }
@@ -157,7 +170,7 @@ export class LocalRepo implements Repo {
   // ———————————————————— 账户 ————————————————————
 
   async currentUser(): Promise<User | null> {
-    const id = sessionStorage.getItem(SESSION_KEY);
+    const id = this.session.getItem(SESSION_KEY);
     if (!id) return null;
     const u = readDB().users.find((x) => x.id === id);
     return u ? { id: u.id, email: u.email, display_name: u.display_name } : null;
@@ -167,7 +180,7 @@ export class LocalRepo implements Repo {
     const db = readDB();
     const u = db.users.find((x) => x.email.toLowerCase() === email.toLowerCase());
     if (!u || u.password !== password) throw new Error('邮箱或密码错误');
-    sessionStorage.setItem(SESSION_KEY, u.id);
+    this.session.setItem(SESSION_KEY, u.id);
     return { id: u.id, email: u.email, display_name: u.display_name };
   }
 
@@ -177,12 +190,12 @@ export class LocalRepo implements Repo {
     const u = { id: uuid(), email, password, display_name: displayName || email.split('@')[0] };
     db.users.push(u);
     writeDB(db);
-    sessionStorage.setItem(SESSION_KEY, u.id);
+    this.session.setItem(SESSION_KEY, u.id);
     return { id: u.id, email: u.email, display_name: u.display_name };
   }
 
   async signOut() {
-    sessionStorage.removeItem(SESSION_KEY);
+    this.session.removeItem(SESSION_KEY);
   }
 
   // ———————————————————— 工作空间 ————————————————————
@@ -213,7 +226,7 @@ export class LocalRepo implements Repo {
 
   async renameWorkspace(id: ID, name: string) {
     const db = readDB();
-    this.requireRole(db, id, 'owner');
+    this.require(db, id, 'renameWorkspace');
     db.workspaces.find((w) => w.id === id)!.name = name;
     writeDB(db);
     this.emit({ type: 'members', workspace_id: id });
@@ -221,7 +234,7 @@ export class LocalRepo implements Repo {
 
   async deleteWorkspace(id: ID) {
     const db = readDB();
-    this.requireRole(db, id, 'owner');
+    this.require(db, id, 'deleteWorkspace');
     db.workspaces = db.workspaces.filter((w) => w.id !== id);
     db.members = db.members.filter((m) => m.workspace_id !== id);
     for (const t of TABLES) (db as any)[t] = (db[t] as AnyRow[]).filter((r) => r.workspace_id !== id);
@@ -258,7 +271,7 @@ export class LocalRepo implements Repo {
 
   async inviteMember(workspaceId: ID, email: string | null, role: Role) {
     const db = readDB();
-    this.requireRole(db, workspaceId, 'owner');
+    this.require(db, workspaceId, 'manageMembers');
     const token = uuid().replace(/-/g, '');
     db.invitations.push({
       token, workspace_id: workspaceId, email, role,
@@ -288,7 +301,7 @@ export class LocalRepo implements Repo {
 
   async setMemberRole(workspaceId: ID, userId: ID, role: Role) {
     const db = readDB();
-    this.requireRole(db, workspaceId, 'owner');
+    this.require(db, workspaceId, 'manageMembers');
     const m = db.members.find((x) => x.workspace_id === workspaceId && x.user_id === userId);
     if (!m) throw new Error('成员不存在');
     if (m.role === 'owner' && role !== 'owner' && this.ownerCount(db, workspaceId) <= 1)
@@ -301,7 +314,7 @@ export class LocalRepo implements Repo {
 
   async removeMember(workspaceId: ID, userId: ID) {
     const db = readDB();
-    if (userId !== this.uid()) this.requireRole(db, workspaceId, 'owner');
+    if (userId !== this.uid()) this.require(db, workspaceId, 'manageMembers');
     const m = db.members.find((x) => x.workspace_id === workspaceId && x.user_id === userId);
     if (m?.role === 'owner' && this.ownerCount(db, workspaceId) <= 1) throw new Error('不能移除最后一个 Owner');
     db.members = db.members.filter((x) => !(x.workspace_id === workspaceId && x.user_id === userId));
@@ -319,7 +332,7 @@ export class LocalRepo implements Repo {
   async insert<T extends TableName>(table: T, row: Partial<TableRows[T]> & { workspace_id: ID }) {
     let created!: TableRows[T];
     this.tx(row.workspace_id, (db, cs) => {
-      this.requireRole(db, row.workspace_id, 'editor');
+      this.require(db, row.workspace_id, 'edit');
       this.checkRefs(db, table, row);
       created = { id: uuid(), version: 1, created_at: now(), updated_at: now(), ...defaults(table), ...row } as TableRows[T];
       (db[table] as AnyRow[]).push(created);
@@ -332,7 +345,7 @@ export class LocalRepo implements Repo {
     let updated!: TableRows[T];
     const ws = this.find(readDB(), table, id).workspace_id;
     this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'edit');
       const row = this.find(db, table, id);
       this.checkVersion(row, expectedVersion);
       const { id: _i, workspace_id: _w, version: _v, ...safe } = patch as any;
@@ -356,7 +369,8 @@ export class LocalRepo implements Repo {
     if (!row) return;
     this.tx(row.workspace_id, (db, cs) => {
       // 永久删除事件包仅 Owner 可执行；看板内的列/任务/清单 Editor 可删除
-      this.requireRole(db, row.workspace_id, table === 'events' || table === 'regions' ? 'owner' : 'editor');
+      // 永久删除事件包/区域记录仅 Owner；看板内容 Editor 可删
+      this.require(db, row.workspace_id, table === 'events' || table === 'regions' ? 'deleteEvent' : 'edit');
       this.cascadeDelete(db, table, id, cs);
     });
   }
@@ -409,7 +423,7 @@ export class LocalRepo implements Repo {
 
   async createEvent(input: CreateEventInput) {
     return this.tx(input.workspace_id, (db, cs) => {
-      this.requireRole(db, input.workspace_id, 'editor');
+      this.require(db, input.workspace_id, 'edit');
       const t = now();
       const e: EventPkg = {
         id: uuid(), workspace_id: input.workspace_id, version: 1, created_at: t, updated_at: t,
@@ -434,7 +448,7 @@ export class LocalRepo implements Repo {
 
   async moveItems(workspaceId: ID, moves: ItemMove[]) {
     return this.tx(workspaceId, (db, cs) => {
-      this.requireRole(db, workspaceId, 'editor');
+      this.require(db, workspaceId, 'edit');
       for (const m of moves) {
         if (m.region_id) {
           const r = db.regions.find((x) => x.id === m.region_id);
@@ -468,7 +482,7 @@ export class LocalRepo implements Repo {
   async moveRegion(id: ID, x: number, y: number, version: number) {
     const ws = this.find(readDB(), 'regions', id).workspace_id;
     return this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'edit');
       const r = this.find(db, 'regions', id);
       this.checkVersion(r, version);
       const dx = x - r.x, dy = y - r.y;
@@ -487,7 +501,7 @@ export class LocalRepo implements Repo {
   async deleteRegion(id: ID) {
     const ws = this.find(readDB(), 'regions', id).workspace_id;
     return this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'deleteRegion');
       for (const e of db.events.filter((e) => e.region_id === id)) {
         e.region_id = null; e.quadrant = null; this.touch(e, cs, 'events');
       }
@@ -501,16 +515,11 @@ export class LocalRepo implements Repo {
 
   async createStack(workspaceId: ID, eventIds: ID[], name: string | null) {
     return this.tx(workspaceId, (db, cs) => {
-      this.requireRole(db, workspaceId, 'editor');
-      if (eventIds.length < 2) throw new Error('至少选择两个事件包才能堆叠');
+      this.require(db, workspaceId, 'edit');
       const evs = eventIds.map((id) => this.find(db, 'events', id));
-      for (const e of evs) {
-        if (e.workspace_id !== workspaceId) throw new PermissionError();
-        if (e.archived_at) throw new Error('已归档的事件包不能堆叠');
-        if (e.stack_id) throw new Error(`「${e.title}」已在其他卡片堆中`);
-      }
-      const key = (e: EventPkg) => `${e.region_id ?? '-'}|${e.quadrant ?? '-'}`;
-      if (new Set(evs.map(key)).size > 1) throw new Error('只能堆叠同一象限（或同在区域外）的事件包');
+      if (evs.some((e) => e.workspace_id !== workspaceId)) throw new PermissionError();
+      const invalid = validateStack(evs);
+      if (invalid) throw new Error(invalid);
       const top = evs[0];
       const t = now();
       const s = { id: uuid(), workspace_id: workspaceId, version: 1, created_at: t, updated_at: t,
@@ -524,7 +533,7 @@ export class LocalRepo implements Repo {
   async unstack(stackId: ID) {
     const ws = this.find(readDB(), 'stacks', stackId).workspace_id;
     return this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'edit');
       const s = this.find(db, 'stacks', stackId);
       const members = db.events.filter((e) => e.stack_id === stackId);
       const spots = fanOut(members.map((m) => m.id), s);
@@ -555,7 +564,7 @@ export class LocalRepo implements Repo {
   async moveTask(taskId: ID, listId: ID, position: number, version: number) {
     const ws = this.find(readDB(), 'tasks', taskId).workspace_id;
     return this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'edit');
       const t = this.find(db, 'tasks', taskId);
       this.checkVersion(t, version);
       const l = this.find(db, 'lists', listId);
@@ -568,7 +577,7 @@ export class LocalRepo implements Repo {
   async archiveEvent(eventId: ID, version: number, complete: boolean) {
     const ws = this.find(readDB(), 'events', eventId).workspace_id;
     return this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'archive');
       const e = this.find(db, 'events', eventId);
       this.checkVersion(e, version);
       const stackId = e.stack_id;
@@ -589,7 +598,7 @@ export class LocalRepo implements Repo {
   async restoreEvent(eventId: ID) {
     const ws = this.find(readDB(), 'events', eventId).workspace_id;
     return this.tx(ws, (db, cs) => {
-      this.requireRole(db, ws, 'editor');
+      this.require(db, ws, 'archive');
       const e = this.find(db, 'events', eventId);
       if (!e.archived_at) return;
       // 原区域已删除时 region_id 早已被置空；坐标保留，由客户端定位到该位置
@@ -601,7 +610,7 @@ export class LocalRepo implements Repo {
 
   async listActivity(workspaceId: ID, limit: number) {
     const db = readDB();
-    this.requireRole(db, workspaceId, 'viewer');
+    this.require(db, workspaceId, 'view');
     return db.activity.filter((a) => a.workspace_id === workspaceId).slice(-limit).reverse();
   }
 

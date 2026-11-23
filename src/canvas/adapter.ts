@@ -1,7 +1,6 @@
 // 画布适配层：把业务对象转换成 React Flow 节点。业务数据不依赖 React Flow 的节点格式。
 import type { Node } from '@xyflow/react';
-import type { EventPkg, ID, Quadrant, Region, Stack } from '../domain/types';
-import type { PresenceState } from '../data';
+import type { EventPkg, ID, PresenceState, Quadrant, Region, Stack } from '../domain/types';
 import type { Density } from '../store/store';
 
 export interface RegionNodeData extends Record<string, unknown> {

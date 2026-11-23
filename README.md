@@ -38,30 +38,42 @@ npm run dev          # http://localhost:5173
 
 | 命令 | 内容 |
 |---|---|
-| `npm test` | Vitest：布局算法（象限判定、网格整理、排序键）和本地数据层（版本冲突、堆叠约束、权限） |
+| `npm test` | Vitest：布局算法、架构边界检查，以及对本地实现运行的后端契约测试 |
+| `npm run test:contract:supabase` | 对真实 Supabase 项目运行同一组后端契约测试（需要 `SUPABASE_URL`、`SUPABASE_ANON_KEY`；`CONTRACT_REALTIME=0` 跳过实时部分） |
 | `npm run test:e2e` | Playwright：完整用户流程，包括两个账户的实时协作 |
-| `PGURL=postgres://… npm run test:db` | 在真实 PostgreSQL 15+ 上执行迁移，并测试 RLS 隔离、角色权限、RPC 事务和版本冲突 |
-| `npm run verify:supabase` | 针对真实 Supabase 项目的端到端验证（见上文），`--skip-realtime` 可跳过 WebSocket 检查 |
+| `PGURL=postgres://… npm run test:db` | 在真实 PostgreSQL 15+ 上执行全部迁移，并测试 RLS 隔离、角色权限、RPC 事务和版本冲突 |
+| `npm run verify:supabase` | 针对真实 Supabase 项目的数据库层安全检查（见上文），`--skip-realtime` 可跳过 WebSocket 检查 |
+| `npm run typecheck` | 应用代码与测试代码的类型检查 |
 
 ## 架构
 
+业务模型、画布和看板逻辑**独立于任何后端**。Supabase 只是 V1 的一个后端实现，通过数据访问接口（后端契约 `src/data/repo.ts`）接入，将来可以替换为其他数据库服务或自建后端。详见 [docs/architecture.md](docs/architecture.md)。
+
 ```
 src/
-  domain/      业务类型与纯函数布局算法（不依赖 React Flow）
-  data/        Repo 接口 + LocalRepo（浏览器内“服务端”）+ SupabaseRepo
-  store/       zustand：乐观更新、串行写队列、实时合并、冲突回退与快照校准
+  domain/      业务模型：类型、布局算法、业务规则（权限矩阵、堆叠约束）；不依赖任何东西
+  data/
+    repo.ts    后端契约：Repo 接口（6 个端口）与契约错误类型
+    index.ts   组合根：按配置动态加载一个后端实现
+    local/     浏览器内实现（localStorage + BroadcastChannel）
+    supabase/  Supabase 实现（唯一引用 Supabase SDK 的地方）
+  store/       zustand：只依赖后端契约；乐观更新、串行写队列、实时合并、冲突回退与快照校准
   canvas/      React Flow 适配层（adapter.ts）与自定义节点：区域 / 事件包 / 卡片堆
   board/       Trello 式看板（dnd-kit）与任务详情
   components/  顶栏、搜索、归档中心、成员与邀请、活动记录、登录
+tests/
+  contract/    后端契约测试：同一组测试运行在每个后端实现上
+  architecture.test.ts  依赖边界检查
 brand/         品牌素材源文件（图标、App 图标、横幅、社交预览图），见 brand/README.md
 public/        网站图标（favicon、PWA 图标、apple-touch-icon）与 logo
 supabase/
-  migrations/  表结构、复合外键、RLS、触发器、事务性 RPC、Realtime 发布
+  migrations/  表结构、复合外键、表级授权、RLS、触发器、事务性 RPC、Realtime 发布
   tests/       auth stub + RLS/RPC 测试脚本
 ```
 
 **关键设计决定**
 
+- **后端无关**：界面和业务逻辑只依赖后端契约；具体实现在启动时注入（`main.tsx`）。架构测试和契约测试保证这一点不被破坏。
 - **数据与画布解耦**：数据库只保存世界坐标和业务字段，`canvas/adapter.ts` 负责转换成 React Flow 节点。以后更换画布引擎只需要重写这一层。
 - **象限归属与坐标分别保存**：`events.region_id/quadrant` 与 `x/y` 是独立字段。只有拖拽结束时才按卡片中心重新判定一次象限，象限内的微小移动不会改变优先级。
 - **区域主体不拦截指针**：在区域内依然可以平移画布、框选和双击创建事件包；只有区域标题栏可以拖动区域，拖动时区域内的事件包和卡片堆一起移动（`move_region` 在同一事务中完成）。

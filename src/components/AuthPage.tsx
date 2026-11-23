@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { repo } from '../data';
 import { useStore } from '../store/store';
+import { ROLE_LABEL } from '../domain/rules';
 
 export function AuthPage() {
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -10,6 +10,7 @@ export function AuthPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const s = useStore.getState();
+  const backend = useStore((x) => x.backend);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +31,7 @@ export function AuthPage() {
       <form className="auth-card" onSubmit={submit}>
         <div className="brand"><img className="logo" src="/logo.svg" alt="" /> Tessnook</div>
         <p className="muted">用空间组织注意力，用事件包组织工作，用看板推进执行。</p>
-        {repo.mode === 'local' && (
+        {backend?.storage === 'browser' && (
           <p className="note">本地模式：账户与数据保存在本浏览器中。在不同标签页登录不同账户即可体验多人协作。</p>
         )}
         <div className="tabs">
@@ -62,7 +63,7 @@ export function WorkspacePicker() {
             <div className="section-title">选择工作空间</div>
             {workspaces.map((w) => (
               <button key={w.id} className="ws-item" onClick={() => s.openWorkspace(w.id)}>
-                {w.name} <span className="muted">{w.role}</span>
+                {w.name} <span className="muted">{ROLE_LABEL[w.role]}</span>
               </button>
             ))}
             <hr />

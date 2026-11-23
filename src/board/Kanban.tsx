@@ -23,7 +23,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { CalendarClock, CheckSquare, GripVertical, MoreHorizontal, Square, Trash2 } from 'lucide-react';
 import type { BoardList, ID, Task } from '../domain/types';
 import { positionBetween } from '../domain/layout';
-import { useStore } from '../store/store';
+import { useStore, canEdit } from '../store/store';
 import { dueState, formatDue, initials } from '../components/format';
 import { TaskDetail } from './TaskDetail';
 
@@ -239,14 +239,14 @@ function TaskCard({ task, overlay }: { task: Task; overlay?: boolean }) {
   const members = useStore((s) => s.members);
   const checklist = useStore((s) => s.checklist_items);
   const updateRow = useStore((s) => s.updateRow);
-  const role = useStore((s) => s.role);
+  const editable = useStore(canEdit);
   const items = Object.values(checklist).filter((c) => c.task_id === task.id);
   const assignee = members.find((m) => m.user_id === task.assignee_id);
   const due = dueState(task.due_date, task.done);
   return (
     <div className={`task-card ${task.done ? 'is-done' : ''} ${overlay ? 'overlay' : ''}`} data-testid="task-card">
       <div className="task-row">
-        <button className="check nodrag" disabled={role === 'viewer'} aria-label="切换完成"
+        <button className="check nodrag" disabled={!editable} aria-label="切换完成"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); updateRow('tasks', task.id, { done: !task.done }); }}>
           {task.done ? <CheckSquare size={15} /> : <Square size={15} />}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArchiveRestore, Copy, Eye, X } from 'lucide-react';
 import type { Activity, Role } from '../domain/types';
-import { repo } from '../data';
+import { can } from '../domain/rules';
 import { useStore } from '../store/store';
 import { initials, relTime } from './format';
 import { roleName } from './TopBar';
@@ -72,8 +72,8 @@ export function ArchiveCenter({ onClose }: { onClose(): void }) {
                 </div>
               </div>
               <button onClick={() => { s.openEvent(e.id); onClose(); }}><Eye size={14} />查看看板</button>
-              {role !== 'viewer' && <button onClick={() => s.restoreEvent(e.id)}><ArchiveRestore size={14} />恢复</button>}
-              {role === 'owner' && (
+              {can(role, 'archive') && <button onClick={() => s.restoreEvent(e.id)}><ArchiveRestore size={14} />恢复</button>}
+              {can(role, 'deleteEvent') && (
                 <button className="danger" onClick={() => confirm(`永久删除「${e.title}」？无法撤销。`) && s.removeRow('events', e.id)}>删除</button>
               )}
             </div>
@@ -87,19 +87,15 @@ export function ArchiveCenter({ onClose }: { onClose(): void }) {
 // —————————————————— 成员与邀请 ——————————————————
 export function MembersDialog({ onClose }: { onClose(): void }) {
   const members = useStore((s) => s.members);
-  const ws = useStore((s) => s.workspace)!;
   const me = useStore((s) => s.user)!;
+  const backend = useStore((s) => s.backend);
   const role = useStore((s) => s.role);
   const presence = useStore((s) => s.presence);
   const s = useStore.getState();
   const [email, setEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<Role>('editor');
   const [link, setLink] = useState<string | null>(null);
-  const isOwner = role === 'owner';
-
-  const run = async (fn: () => Promise<unknown>) => {
-    try { await fn(); await s.resync(); } catch (e) { s.toast((e as Error).message, 'error'); }
-  };
+  const isOwner = can(role, 'manageMembers');
 
   return (
     <Modal title="成员与邀请" onClose={onClose}>
@@ -113,17 +109,17 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
               <div className="muted small">{m.email}</div>
             </div>
             {isOwner ? (
-              <select value={m.role} onChange={(e) => run(() => repo.setMemberRole(ws.id, m.user_id, e.target.value as Role))}>
+              <select value={m.role} onChange={(e) => s.setMemberRole(m.user_id, e.target.value as Role)}>
                 <option value="owner">Owner</option>
                 <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
               </select>
             ) : <span className="role-tag">{roleName(m.role)}</span>}
             {(isOwner && m.user_id !== me.id) && (
-              <button className="danger" onClick={() => confirm(`移除成员 ${m.display_name}？`) && run(() => repo.removeMember(ws.id, m.user_id))}>移除</button>
+              <button className="danger" onClick={() => confirm(`移除成员 ${m.display_name}？`) && s.removeMember(m.user_id)}>移除</button>
             )}
             {m.user_id === me.id && !isOwner && (
-              <button className="danger" onClick={() => confirm('退出该工作空间？') && run(() => repo.removeMember(ws.id, me.id))}>退出</button>
+              <button className="danger" onClick={() => confirm('退出该工作空间？') && s.removeMember(me.id)}>退出</button>
             )}
           </div>
         ))}
@@ -132,10 +128,8 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
       {isOwner ? (
         <form className="invite" onSubmit={async (e) => {
           e.preventDefault();
-          try {
-            const token = await repo.inviteMember(ws.id, email.trim() || null, inviteRole);
-            setLink(`${location.origin}${location.pathname}?invite=${token}`);
-          } catch (err) { s.toast((err as Error).message, 'error'); }
+          const token = await s.inviteMember(email.trim() || null, inviteRole);
+          if (token) setLink(`${location.origin}${location.pathname}?invite=${token}`);
         }}>
           <div className="section-title">邀请成员</div>
           <div className="toolbar-row">
@@ -150,7 +144,7 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
             <div className="invite-link">
               <code>{link}</code>
               <button type="button" onClick={() => { navigator.clipboard?.writeText(link); s.toast('已复制邀请链接', 'success'); }}><Copy size={14} />复制</button>
-              <div className="muted small">链接 7 天内有效，仅可使用一次。{repo.mode === 'local' && '本地模式下，请在同一浏览器的新标签页中注册另一个账户后打开此链接。'}</div>
+              <div className="muted small">链接 7 天内有效，仅可使用一次。{backend?.storage === 'browser' && '数据只保存在本浏览器中：请在同一浏览器的新标签页中注册另一个账户后打开此链接。'}</div>
             </div>
           )}
         </form>
@@ -161,13 +155,13 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
 
 // —————————————————— 活动记录 ——————————————————
 export function ActivityDialog({ onClose }: { onClose(): void }) {
-  const ws = useStore((s) => s.workspace)!;
+  const wsId = useStore((s) => s.workspace?.id);
   const members = useStore((s) => s.members);
   const revision = useStore((s) => s.events);
   const [items, setItems] = useState<Activity[] | null>(null);
   useEffect(() => {
-    repo.listActivity(ws.id, 100).then(setItems).catch(() => setItems([]));
-  }, [ws.id, revision]);
+    useStore.getState().listActivity(100).then(setItems).catch(() => setItems([]));
+  }, [wsId, revision]);
   return (
     <Modal title="活动记录" onClose={onClose}>
       {!items && <p className="muted">加载中…</p>}

@@ -216,6 +216,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
 }
 .selection-bar button { background: transparent; border-color: rgba(255,255,255,0.2); color: inherit; }
 .selection-bar button:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+.selection-bar button.blocked { opacity: 0.5; }
 .readonly-badge { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); padding: 4px 12px; border-radius: 999px; color: var(--muted); z-index: 5; }
 .empty-hint { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: var(--muted); z-index: 4; }
 .empty-hint button { margin: 0 auto; }

@@ -16,6 +16,7 @@ import {
 import type { ID, ItemMove } from '../domain/types';
 import { EVENT_W, cardCenter, locate } from '../domain/layout';
 import { useStore, canEdit as canEditSel } from '../store/store';
+import { can, validateStack } from '../domain/rules';
 import { buildNodes, mergeNodes, type AppNode } from './adapter';
 import { RegionNode } from './nodes/RegionNode';
 import { EventNode } from './nodes/EventNode';
@@ -141,6 +142,8 @@ export function Canvas() {
 
   const selected = nodes.filter((n) => n.selected && (n.type === 'event' || n.type === 'stack'));
   const selectedEvents = selected.filter((n) => n.type === 'event').map((n) => n.id);
+  // 业务规则来自 domain：界面即时提示，后端仍会再次校验
+  const stackProblem = selectedEvents.length > 1 ? validateStack(selectedEvents.map((id) => events[id]).filter(Boolean)) : null;
 
   // ———————— 拖拽 ————————
   const onNodeDragStart = useCallback((_: unknown, node: AppNode, dragged: AppNode[]) => {
@@ -312,7 +315,12 @@ export function Canvas() {
             <>
               <button onClick={() => canvasActions.arrangeSelection(refs)}><LayoutGrid size={14} />网格整理</button>
               {selectedEvents.length > 1 && selectedEvents.length === selected.length && (
-                <button onClick={async () => { await actions.createStack(selectedEvents); clearSelection(); }}><Layers size={14} />堆叠</button>
+                <button title={stackProblem ?? '把选中的事件包叠成一个卡片堆'} className={stackProblem ? 'blocked' : ''}
+                  onClick={async () => {
+                    if (stackProblem) return actions.toast(stackProblem, 'error');
+                    await actions.createStack(selectedEvents);
+                    clearSelection();
+                  }}><Layers size={14} />堆叠</button>
               )}
               {selectedEvents.length > 0 && (
                 <>
@@ -358,7 +366,7 @@ function ContextMenu({ menu, onClose, onCreateAt }: { menu: Menu; onClose(): voi
         {editable && item(done ? '重新打开' : '标记完成', () => s.setEventStatus(e.id, done ? 'active' : 'completed'))}
         {editable && item('归档', () => s.archiveEvent(e.id, false))}
         {editable && !done && item('完成并归档', () => s.archiveEvent(e.id, true))}
-        {s.role === 'owner' && item('永久删除…', () => {
+        {can(s.role, 'deleteEvent') && item('永久删除…', () => {
           if (confirm(`永久删除「${e.title}」及其全部任务？此操作无法撤销。`)) s.removeRow('events', e.id);
         }, true)}
       </>

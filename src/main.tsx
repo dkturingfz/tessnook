@@ -3,9 +3,15 @@ import { createRoot } from 'react-dom/client';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
 import { App } from './App';
+import { configFromEnv, createRepo } from './data';
+import { configureBackend } from './store/store';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// 组合根：唯一决定使用哪个后端实现的地方
+createRepo(configFromEnv()).then((repo) => {
+  configureBackend(repo);
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+});

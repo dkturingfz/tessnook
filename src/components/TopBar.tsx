@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Archive, ChevronDown, History, LogOut, Plus, Rows3, Search, Users } from 'lucide-react';
-import { repo } from '../data';
+import { can, ROLE_LABEL } from '../domain/rules';
+import type { Role } from '../domain/types';
 import { useStore } from '../store/store';
 import { initials } from './format';
 
@@ -14,6 +15,7 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
   const presence = useStore((s) => s.presence);
   const density = useStore((s) => s.density);
   const pending = useStore((s) => s.pendingOps);
+  const backend = useStore((s) => s.backend);
   const s = useStore.getState();
   const [wsMenu, setWsMenu] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
@@ -46,21 +48,18 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
               const name = prompt('新工作空间名称');
               if (name?.trim()) s.createWorkspace(name.trim());
             }}><Plus size={14} />新建工作空间</button>
-            {role === 'owner' && (
-              <button onClick={async () => {
+            {can(role, 'renameWorkspace') && (
+              <button onClick={() => {
                 setWsMenu(false);
                 const name = prompt('重命名工作空间', workspace.name);
-                if (name?.trim()) { await repo.renameWorkspace(workspace.id, name.trim()); await s.refreshWorkspaces(); await s.resync(); }
+                if (name?.trim()) s.renameWorkspace(name.trim());
               }}>重命名当前空间</button>
             )}
-            {role === 'owner' && (
-              <button className="danger" onClick={async () => {
+            {can(role, 'deleteWorkspace') && (
+              <button className="danger" onClick={() => {
                 setWsMenu(false);
                 const typed = prompt(`永久删除工作空间及其全部数据。请输入空间名称「${workspace.name}」确认：`);
-                if (typed !== workspace.name) return;
-                await repo.deleteWorkspace(workspace.id);
-                await s.refreshWorkspaces();
-                useStore.setState({ workspace: null });
+                if (typed === workspace.name) s.deleteWorkspace();
               }}>删除工作空间…</button>
             )}
           </div>
@@ -87,7 +86,9 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
           {userMenu && (
             <div className="dropdown right" onMouseLeave={() => setUserMenu(false)}>
               <div className="menu-note">{user.display_name}<br /><span className="muted">{user.email}</span></div>
-              <div className="menu-note muted">{repo.mode === 'local' ? '本地模式（未连接 Supabase）' : '云端模式'}</div>
+              <div className="menu-note muted">
+                {backend?.storage === 'browser' ? `${backend.label}：数据仅保存在本浏览器` : `${backend?.label ?? ''}：数据保存在服务端`}
+              </div>
               <hr />
               <button onClick={() => s.signOut()}><LogOut size={14} />退出登录</button>
             </div>
@@ -98,8 +99,8 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
   );
 }
 
-export function roleName(r: string | null) {
-  return r === 'owner' ? 'Owner' : r === 'editor' ? 'Editor' : r === 'viewer' ? 'Viewer' : '';
+export function roleName(r: Role | null) {
+  return r ? ROLE_LABEL[r] : '';
 }
 
 function SearchBox() {

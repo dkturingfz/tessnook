@@ -134,3 +134,15 @@ test('两个成员实时协作：邀请、在线状态、同步、降为 Viewer�
   await A.getByTestId('archive-row').getByText('恢复').click();
   await expect(card(B, '共享事件')).toBeVisible();
 });
+
+test('删除工作空间后回到空间选择页，且没有错误提示', async ({ page }) => {
+  await signUp(page, 'D', 'd@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.locator('.region')).toBeVisible();
+  page.on('dialog', (d) => d.accept(d.type() === 'prompt' ? '我的工作空间' : undefined));
+  await page.getByTestId('ws-switch').click();
+  await page.getByText('删除工作空间…').click();
+  await expect(page.getByText('新建工作空间')).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(page.locator('.toast.error')).toHaveCount(0);
+});
