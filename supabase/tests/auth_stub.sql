@@ -1,4 +1,7 @@
--- 仅用于在纯 PostgreSQL 上测试迁移：模拟 Supabase 的 auth schema 与角色
+-- 仅用于在纯 PostgreSQL 上测试迁移：模拟 Supabase 的 auth schema、角色与扩展布局
+-- Supabase 把 pgcrypto 等扩展装在 extensions schema 中，这里保持一致
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 create schema if not exists auth;
 create table if not exists auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
 create or replace function auth.uid() returns uuid language sql stable as $$

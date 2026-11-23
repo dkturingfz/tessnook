@@ -16,7 +16,7 @@ create table public.profiles (
 );
 
 create or replace function public.handle_new_user() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   insert into public.profiles (id, email, display_name)
   values (new.id, new.email,
@@ -66,7 +66,7 @@ create table public.workspace_invitations (
 
 -- 权限辅助函数（security definer 以避免 RLS 递归）
 create or replace function public.member_role_of(ws uuid) returns public.member_role
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select role from public.workspace_members where workspace_id = ws and user_id = auth.uid()
 $$;
 create or replace function public.is_member(ws uuid) returns boolean
@@ -215,7 +215,7 @@ begin
 end $$;
 
 create or replace function public.bump_revision() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare ws uuid := coalesce(new.workspace_id, old.workspace_id);
 begin
   update public.workspaces set revision = revision + 1 where id = ws;
@@ -244,13 +244,13 @@ create trigger stacks_quadrant before insert or update on public.stacks
   for each row execute function public.normalize_quadrant();
 
 create or replace function public.log_activity(ws uuid, act text, etype text, eid uuid, msg text) returns void
-language sql security definer set search_path = public as $$
+language sql security definer set search_path = public, extensions as $$
   insert into public.activity_log (workspace_id, actor_id, action, entity_type, entity_id, summary)
   values (ws, auth.uid(), act, etype, eid, msg)
 $$;
 
 create or replace function public.events_activity() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   if tg_op = 'INSERT' then
     perform public.log_activity(new.workspace_id, 'event.created', 'event', new.id, format('创建事件包「%s」', new.title));
@@ -272,7 +272,7 @@ create trigger events_activity after insert or update on public.events
   for each row execute function public.events_activity();
 
 create or replace function public.tasks_activity() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   if new.done and not old.done then
     perform public.log_activity(new.workspace_id, 'task.done', 'task', new.id, format('完成任务「%s」', new.title));
@@ -375,7 +375,7 @@ end $$;
 -- 工作空间与成员 RPC
 -- ---------------------------------------------------------------------------
 create or replace function public.create_workspace(p_name text) returns public.workspaces
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare ws public.workspaces;
 begin
   if auth.uid() is null then raise exception 'NOT_AUTHENTICATED' using errcode = '42501'; end if;
@@ -387,7 +387,7 @@ begin
 end $$;
 
 create or replace function public.invite_member(p_workspace uuid, p_email text, p_role public.member_role)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, extensions as $$
 declare tok text := encode(gen_random_bytes(24), 'hex');
 begin
   if not public.is_owner(p_workspace) then raise exception 'PERMISSION_DENIED' using errcode = '42501'; end if;
@@ -401,7 +401,7 @@ begin
 end $$;
 
 create or replace function public.accept_invitation(p_token text) returns uuid
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare inv workspace_invitations; me profiles;
 begin
   select * into me from profiles where id = auth.uid();
@@ -419,7 +419,7 @@ begin
 end $$;
 
 create or replace function public.set_member_role(p_workspace uuid, p_user uuid, p_role public.member_role)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not public.is_owner(p_workspace) then raise exception 'PERMISSION_DENIED' using errcode = '42501'; end if;
   perform 1 from workspace_members where workspace_id = p_workspace for update;   -- 串行化角色变更
@@ -433,7 +433,7 @@ begin
 end $$;
 
 create or replace function public.remove_member(p_workspace uuid, p_user uuid)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   if p_user <> auth.uid() and not public.is_owner(p_workspace) then
     raise exception 'PERMISSION_DENIED' using errcode = '42501';
@@ -527,7 +527,7 @@ end $$;
 
 -- 删除区域：Editor 可执行（区域只是组织容器，事件包会保留在原坐标、归属清空）
 create or replace function public.delete_region(p_region uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare r regions; e events; s stacks; cs jsonb := public.cs_empty();
 begin
   select * into r from regions where id = p_region for update;
@@ -571,7 +571,7 @@ end $$;
 
 -- 解除堆叠：成员以 3 列网格在堆位置展开（与前端 fanOut 一致：220 宽 + 16 间距，104 高 + 16 间距）
 create or replace function public.unstack(p_stack uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare s stacks; e events; cs jsonb := public.cs_empty(); i int := 0;
 begin
   select * into s from stacks where id = p_stack for update;
@@ -591,7 +591,7 @@ end $$;
 
 -- 卡片堆成员不足 2 个时解散（内部使用）
 create or replace function public.dissolve_if_small(p_stack uuid, cs jsonb) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare s stacks; e events;
 begin
   select * into s from stacks where id = p_stack for update;
@@ -624,7 +624,7 @@ begin
 end $$;
 
 create or replace function public.archive_event(p_event uuid, p_version int, p_complete boolean)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare e events; s stacks; cs jsonb := public.cs_empty(); sid uuid;
 begin
   select * into e from events where id = p_event for update;

@@ -19,9 +19,16 @@ npm run dev          # http://localhost:5173
 
 ### 连接 Supabase（云端模式）
 
-1. 新建 Supabase 项目，执行 `supabase/migrations/20261123000000_init.sql`（`supabase db push`，或粘贴到 SQL Editor）。
-2. 复制 `.env.example` 为 `.env.local`，填入 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。
+1. 新建 Supabase 项目，执行 `supabase/migrations/20261123000000_init.sql`（`supabase db push`，或整段粘贴到 SQL Editor 运行）。
+2. 复制 `.env.example` 为 `.env.local`，填入 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`（Project Settings → API）。
 3. `npm run dev`。前端会自动切换为 `SupabaseRepo`。
+4. 验证云端模式（测试期间需在 Authentication → Sign In / Providers → Email 关闭 "Confirm email"）：
+
+   ```bash
+   SUPABASE_URL=https://xxxx.supabase.co SUPABASE_ANON_KEY=... npm run verify:supabase
+   ```
+
+   脚本会以 3 个一次性账户检查认证、RLS 隔离、角色权限、事务 RPC、版本冲突、邀请、Realtime 推送、在线状态和成员移除后的推送撤销，结束时删除测试工作空间。
 
 ### 部署到 Cloudflare Pages
 
@@ -34,6 +41,7 @@ npm run dev          # http://localhost:5173
 | `npm test` | Vitest：布局算法（象限判定、网格整理、排序键）和本地数据层（版本冲突、堆叠约束、权限） |
 | `npm run test:e2e` | Playwright：完整用户流程，包括两个账户的实时协作 |
 | `PGURL=postgres://… npm run test:db` | 在真实 PostgreSQL 15+ 上执行迁移，并测试 RLS 隔离、角色权限、RPC 事务和版本冲突 |
+| `npm run verify:supabase` | 针对真实 Supabase 项目的端到端验证（见上文），`--skip-realtime` 可跳过 WebSocket 检查 |
 
 ## 架构
 
