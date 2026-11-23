@@ -28,7 +28,7 @@ export function AuthPage() {
   return (
     <div className="auth">
       <form className="auth-card" onSubmit={submit}>
-        <div className="brand"><img className="logo" src="/tessnook.svg" alt="" /> Tessnook</div>
+        <div className="brand"><img className="logo" src="/logo.svg" alt="" /> Tessnook</div>
         <p className="muted">用空间组织注意力，用事件包组织工作，用看板推进执行。</p>
         {repo.mode === 'local' && (
           <p className="note">本地模式：账户与数据保存在本浏览器中。在不同标签页登录不同账户即可体验多人协作。</p>
@@ -56,7 +56,7 @@ export function WorkspacePicker() {
   return (
     <div className="auth">
       <div className="auth-card">
-        <div className="brand"><img className="logo" src="/tessnook.svg" alt="" /> 你好，{user.display_name}</div>
+        <div className="brand"><img className="logo" src="/logo.svg" alt="" /> 你好，{user.display_name}</div>
         {workspaces.length > 0 && (
           <>
             <div className="section-title">选择工作空间</div>

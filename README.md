@@ -1,8 +1,8 @@
-<p align="center"><img src="public/tessnook.svg" width="96" alt="Tessnook" /></p>
+<p align="center"><img src="brand/tessnook-banner.svg" alt="Tessnook — A place for every idea" width="720" /></p>
 
 # Tessnook
 
-*A spatial board for priorities and work* · 空间化协作看板
+*A place for every idea* · 空间化协作看板
 
 一款基于无限网格画布的空间化任务协作 Web 应用。用户在「重要性 × 紧急性」四象限区域中自由摆放、整理和堆叠**事件包**，点击事件包即在右侧打开 Trello 式工作看板；支持多用户共享工作空间、实时协作和事件归档。
 
@@ -45,6 +45,8 @@ src/
   canvas/      React Flow 适配层（adapter.ts）与自定义节点：区域 / 事件包 / 卡片堆
   board/       Trello 式看板（dnd-kit）与任务详情
   components/  顶栏、搜索、归档中心、成员与邀请、活动记录、登录
+brand/         品牌素材源文件（图标、App 图标、横幅、社交预览图），见 brand/README.md
+public/        网站图标（favicon、PWA 图标、apple-touch-icon）与 logo
 supabase/
   migrations/  表结构、复合外键、RLS、触发器、事务性 RPC、Realtime 发布
   tests/       auth stub + RLS/RPC 测试脚本

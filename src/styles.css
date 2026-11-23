@@ -15,10 +15,15 @@
   --grid: #e8ebf0;
   --region-bg: rgba(255, 255, 255, 0.55);
   --region-mini: #dfe5ee;
-  --q1: rgba(239, 68, 68, 0.06);
-  --q2: rgba(59, 130, 246, 0.06);
-  --q3: rgba(148, 163, 184, 0.07);
-  --q4: rgba(245, 158, 11, 0.07);
+  /* 四象限配色取自品牌图标：位置与图标中的四个方块一一对应 */
+  --q1-solid: #A9C2D9; /* 右上 浅蓝 */
+  --q2-solid: #7FAEA6; /* 左上 青绿 */
+  --q3-solid: #C8B9D8; /* 左下 淡紫 */
+  --q4-solid: #E4BE95; /* 右下 杏色 */
+  --q1: rgba(169, 194, 217, 0.20);
+  --q2: rgba(127, 174, 166, 0.16);
+  --q3: rgba(200, 185, 216, 0.18);
+  --q4: rgba(228, 190, 149, 0.18);
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
   --shadow-lg: 0 10px 30px rgba(16, 24, 40, 0.16);
   --radius: 10px;
@@ -29,6 +34,8 @@
     --bg: #12151b; --surface: #1b2029; --surface-2: #222833; --border: #2d3441; --border-strong: #3c4555;
     --text: #e6e9ef; --muted: #8d97a8; --primary: #5b8dff; --primary-soft: #1f2b45; --grid: #1c212a;
     --region-bg: rgba(27, 32, 41, 0.6); --region-mini: #2a3140; --accent-default: #8391a7;
+    --q1: rgba(169, 194, 217, 0.10); --q2: rgba(127, 174, 166, 0.10);
+    --q3: rgba(200, 185, 216, 0.10); --q4: rgba(228, 190, 149, 0.10);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
@@ -136,7 +143,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
 .quadrant-Q3 { border-bottom-left-radius: 14px; }
 .quadrant-Q4 { border-bottom-right-radius: 14px; }
 .quadrant.is-target { background: var(--primary-soft); outline: 2px solid var(--primary); outline-offset: -2px; }
-.quadrant-label { position: absolute; top: 8px; left: 10px; font-size: 12px; color: var(--muted); user-select: none; }
+.quadrant-label { position: absolute; top: 8px; left: 10px; font-size: 12px; color: var(--muted); user-select: none; display: flex; align-items: center; gap: 4px; }
+.quadrant-label::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--q-solid); }
+.quadrant-Q1 { --q-solid: var(--q1-solid); }
+.quadrant-Q2 { --q-solid: var(--q2-solid); }
+.quadrant-Q3 { --q-solid: var(--q3-solid); }
+.quadrant-Q4 { --q-solid: var(--q4-solid); }
 .quadrant-Q1 .quadrant-label, .quadrant-Q4 .quadrant-label { left: auto; right: 10px; }
 .quadrant-count { margin-left: 6px; font-weight: 600; }
 .axis { position: absolute; font-size: 11px; color: var(--muted); user-select: none; }
