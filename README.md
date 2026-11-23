@@ -78,12 +78,13 @@ supabase/
 | M1 工程、认证、工作空间、成员、RLS | ✅ 已实现。数据库测试覆盖数据隔离、角色权限和成员移除后的访问撤销 |
 | M2 画布、四象限区域、事件包、持久化、侧边面板 | ✅ 已实现 |
 | M3 网格整理/撤销、多选、堆叠、看板、检查清单、完成/归档/恢复 | ✅ 已实现 |
-| M4 实时同步、在线状态、版本冲突、重连校准 | ✅ 已实现（本地模式已端到端验证；Supabase 通道待接真实项目验证） |
+| M4 实时同步、在线状态、版本冲突、重连校准 | ✅ 已实现。Supabase 云端已验证认证、RLS、权限、RPC、冲突与邀请；Realtime/Presence 尚需在可用 WebSocket 的环境中运行 `npm run verify:supabase` 确认 |
 | M5 性能压测、备份恢复演练、正式部署 | ⏳ 待做 |
 
 **已知限制和下一步**
 
-- Supabase 模式的代码已经写好，迁移也在 PostgreSQL 16 上通过了测试，但还没有连接真实的 Supabase 项目跑过（Realtime 的 RLS 过滤、邮件确认流程等需要在线验证）。
+- Supabase 云端模式已在真实项目上验证（`verify:supabase` 14/14，以及前端完整流程）。Realtime 推送、Presence 和成员移除后的推送撤销仍需在支持 WebSocket 的环境中运行 `npm run verify:supabase`（不加 `--skip-realtime`）确认。
+- 正式上线前请重新开启 Supabase 的邮箱确认（Authentication → Sign In / Providers → Email → Confirm email），并配置站点 URL 与重定向地址。
 - `workspaces.revision` 由行级触发器递增；批量操作较多时可以改为语句级触发器以减少写放大。
 - 500 个事件包规模的性能尚未压测（技术风险 17.1）。
 - 邀请目前只生成链接，没有发送邮件。如需邮件邀请，可以增加一个调用邮件服务的 Edge Function。
