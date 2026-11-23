@@ -48,7 +48,7 @@ interface Data {
 const emptyData = (): Data => ({ regions: {}, events: {}, stacks: {}, lists: {}, tasks: {}, checklist_items: {} });
 
 // —— 个人界面偏好：只存本地，不同步给其他成员 ——
-const PREFS_KEY = 'spatial-board:prefs';
+const PREFS_KEY = 'tessnook:prefs';
 function loadPrefs(): { panelWidth: number; density: Density; lastWorkspace?: ID } {
   try {
     return { panelWidth: 0.4, density: 'standard', ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') };

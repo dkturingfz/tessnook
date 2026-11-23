@@ -51,10 +51,10 @@ interface DB {
   checklist_items: TableRows['checklist_items'][];
 }
 
-const DB_KEY = 'spatial-board:db:v1';
-const SESSION_KEY = 'spatial-board:session-user';
-const RT_CHANNEL = 'spatial-board:realtime';
-const PRESENCE_CHANNEL = 'spatial-board:presence';
+const DB_KEY = 'tessnook:db:v1';
+const SESSION_KEY = 'tessnook:session-user';
+const RT_CHANNEL = 'tessnook:realtime';
+const PRESENCE_CHANNEL = 'tessnook:presence';
 
 const now = () => new Date().toISOString();
 const uuid = () => crypto.randomUUID();

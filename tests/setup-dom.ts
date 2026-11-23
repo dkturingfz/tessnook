@@ -11,5 +11,5 @@ g.localStorage = new MemStorage();
 g.sessionStorage = new MemStorage();
 g.window ??= { addEventListener() {}, removeEventListener() {} };
 g.document ??= { addEventListener() {}, removeEventListener() {} };
-export function switchUser(id: string) { g.sessionStorage.setItem('spatial-board:session-user', id); }
+export function switchUser(id: string) { g.sessionStorage.setItem('tessnook:session-user', id); }
 export function resetStorage() { g.localStorage.clear(); g.sessionStorage.clear(); }

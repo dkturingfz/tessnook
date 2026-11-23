@@ -30,7 +30,7 @@ type Menu =
   | { kind: 'stack'; id: ID; x: number; y: number }
   | { kind: 'pane'; x: number; y: number; flow: { x: number; y: number } };
 
-const VIEW_PREFS = 'spatial-board:canvas-prefs';
+const VIEW_PREFS = 'tessnook:canvas-prefs';
 function loadView() {
   try {
     return { grid: true, snap: false, minimap: false, ...JSON.parse(localStorage.getItem(VIEW_PREFS) || '{}') };

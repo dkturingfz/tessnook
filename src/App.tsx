@@ -8,7 +8,7 @@ import { TopBar, type Dialog } from './components/TopBar';
 import { ActivityDialog, ArchiveCenter, MembersDialog } from './components/Dialogs';
 import { AuthPage, WorkspacePicker } from './components/AuthPage';
 
-const INVITE_KEY = 'spatial-board:pending-invite';
+const INVITE_KEY = 'tessnook:pending-invite';
 
 export function App() {
   const authChecked = useStore((s) => s.authChecked);
@@ -43,7 +43,7 @@ export function App() {
       return;
     }
     let last: string | undefined;
-    try { last = JSON.parse(localStorage.getItem('spatial-board:prefs') || '{}').lastWorkspace; } catch { /* ignore */ }
+    try { last = JSON.parse(localStorage.getItem('tessnook:prefs') || '{}').lastWorkspace; } catch { /* ignore */ }
     const target = workspaces.find((w) => w.id === last) ?? (workspaces.length === 1 ? workspaces[0] : undefined);
     if (target) s.openWorkspace(target.id);
   }, [user, workspace, workspaces]);

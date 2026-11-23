@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const db = (p: Page) => p.evaluate(() => JSON.parse(localStorage.getItem('spatial-board:db:v1')!));
+const db = (p: Page) => p.evaluate(() => JSON.parse(localStorage.getItem('tessnook:db:v1')!));
 
 async function signUp(page: Page, name: string, email: string, url = '/') {
   await page.goto(url);

@@ -1,5 +1,5 @@
 {
-  "name": "spatial-board",
+  "name": "tessnook",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -31,5 +31,7 @@
     "typescript": "5.7",
     "vite": "^6.4.6",
     "vitest": "^3.2.7"
-  }
+  },
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "description": "Tessnook — a spatial board for priorities and work"
 }

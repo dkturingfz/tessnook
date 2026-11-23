@@ -28,7 +28,7 @@ export function AuthPage() {
   return (
     <div className="auth">
       <form className="auth-card" onSubmit={submit}>
-        <div className="brand"><span className="logo">◱</span> 空间化协作看板</div>
+        <div className="brand"><span className="logo">◱</span> Tessnook</div>
         <p className="muted">用空间组织注意力，用事件包组织工作，用看板推进执行。</p>
         {repo.mode === 'local' && (
           <p className="note">本地模式：账户与数据保存在本浏览器中。在不同标签页登录不同账户即可体验多人协作。</p>

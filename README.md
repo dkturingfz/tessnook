@@ -1,4 +1,6 @@
-# 空间化协作看板（Spatial Board）
+# Tessnook
+
+*A spatial board for priorities and work* · 空间化协作看板
 
 一款基于无限网格画布的空间化任务协作 Web 应用。用户在「重要性 × 紧急性」四象限区域中自由摆放、整理和堆叠**事件包**，点击事件包即在右侧打开 Trello 式工作看板；支持多用户共享工作空间、实时协作和事件归档。
 
@@ -73,3 +75,12 @@ supabase/
 - `workspaces.revision` 由行级触发器递增；批量操作较多时可以改为语句级触发器以减少写放大。
 - 500 个事件包规模的性能尚未压测（技术风险 17.1）。
 - 邀请目前只生成链接，没有发送邮件。如需邮件邀请，可以增加一个调用邮件服务的 Edge Function。
+
+## 许可协议
+
+Tessnook 采用 [PolyForm Noncommercial License 1.0.0](LICENSE) 发布。
+
+- **非商业用途免费**：个人学习、研究、爱好项目，以及慈善、教育、公益、科研和政府机构的非商业使用，都可以免费使用、修改和分发（分发时需附带许可协议和 `Required Notice` 行）。
+- **商业用途需要授权**：在商业产品、商业服务或公司内部的营利性工作中使用，需要另行取得商业授权。请通过 [GitHub](https://github.com/dkturingfz) 联系作者。
+
+注意：这是"源码可见"（source-available）协议，而不是 OSI 定义的开源协议。
