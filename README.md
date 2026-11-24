@@ -4,6 +4,8 @@
 
 *A place for every idea* · 空间化协作看板
 
+**在线体验**：https://tessnook.dkturingfz.workers.dev
+
 一款基于无限网格画布的空间化任务协作 Web 应用。用户在「重要性 × 紧急性」四象限区域中自由摆放、整理和堆叠**事件包**，点击事件包即在右侧打开 Trello 式工作看板；支持多用户共享工作空间、实时协作和事件归档。
 
 > 用空间组织注意力，用事件包组织工作，用看板推进执行。
@@ -105,12 +107,12 @@ supabase/
 | M1 工程、认证、工作空间、成员、RLS | ✅ 已实现。数据库测试覆盖数据隔离、角色权限和成员移除后的访问撤销 |
 | M2 画布、四象限区域、事件包、持久化、侧边面板 | ✅ 已实现 |
 | M3 网格整理/撤销、多选、堆叠、看板、检查清单、完成/归档/恢复 | ✅ 已实现 |
-| M4 实时同步、在线状态、版本冲突、重连校准 | ✅ 已实现。Supabase 云端已验证认证、RLS、权限、RPC、冲突与邀请；Realtime/Presence 尚需在可用 WebSocket 的环境中运行 `npm run verify:supabase` 确认 |
-| M5 性能压测、备份恢复演练、正式部署 | ⏳ 待做 |
+| M4 实时同步、在线状态、版本冲突、重连校准 | ✅ 已实现并在线上验证：两名成员之间的新建、拖动、任务、角色变更、归档、移除均实时同步（约 1 秒内） |
+| M5 性能压测、备份恢复演练、正式部署 | 🚧 已部署到 Cloudflare Workers；性能压测与备份恢复演练待做 |
 
 **已知限制和下一步**
 
-- Supabase 云端模式已在真实项目上验证（`verify:supabase` 14/14，以及前端完整流程）。Realtime 推送、Presence 和成员移除后的推送撤销仍需在支持 WebSocket 的环境中运行 `npm run verify:supabase`（不加 `--skip-realtime`）确认。
+- Supabase 云端模式已在真实项目和线上网站验证：后端契约测试、数据库安全检查和两名成员的实时协作流程均通过。
 - 正式上线前请重新开启 Supabase 的邮箱确认（Authentication → Sign In / Providers → Email → Confirm email），并配置站点 URL 与重定向地址。
 - `workspaces.revision` 由行级触发器递增；批量操作较多时可以改为语句级触发器以减少写放大。
 - 500 个事件包规模的性能尚未压测（技术风险 17.1）。
