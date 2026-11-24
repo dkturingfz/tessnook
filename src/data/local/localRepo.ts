@@ -19,6 +19,7 @@ import {
 } from '../../domain/types';
 import { fanOut } from '../../domain/layout';
 import { can, validateStack, type Action } from '../../domain/rules';
+import { validateAxisSetting } from '../../domain/axes';
 import {
   ConflictError,
   PermissionError,
@@ -218,7 +219,7 @@ export class LocalRepo implements Repo {
     db.members.push({ workspace_id: ws.id, user_id: uid, role: 'owner' });
     // 新空间附带一个默认四象限区域
     db.regions.push({
-      id: uuid(), workspace_id: ws.id, name: '近期工作', x: 0, y: 0, width: 1200, height: 800,
+      id: uuid(), workspace_id: ws.id, name: '近期工作', x: 0, y: 0, width: 1200, height: 800, template: 'eisenhower', axis_config: null,
       version: 1, created_at: now(), updated_at: now(),
     });
     writeDB(db);
@@ -411,6 +412,10 @@ export class LocalRepo implements Repo {
       if (!ref || ref.workspace_id !== row.workspace_id) throw new Error('非法的跨工作空间引用');
     };
     if (table === 'events') { same('regions', row.region_id); same('stacks', row.stack_id); }
+    if (table === 'regions') {
+      const invalid = validateAxisSetting(row.template ?? 'eisenhower', row.axis_config ?? null);
+      if (invalid) throw new Error(invalid);
+    }
     if (table === 'lists') same('events', row.event_id);
     if (table === 'tasks') {
       same('events', row.event_id); same('lists', row.list_id);
@@ -699,7 +704,7 @@ export class LocalRepo implements Repo {
 
 function defaults(table: TableName): Partial<AnyRow> {
   switch (table) {
-    case 'regions': return { name: '四象限区域', x: 0, y: 0, width: 1200, height: 800 } as any;
+    case 'regions': return { name: '四象限区域', x: 0, y: 0, width: 1200, height: 800, template: 'eisenhower', axis_config: null } as any;
     case 'lists': return { title: '新列表', position: 1024 } as any;
     case 'tasks': return { title: '', description: '', labels: [], due_date: null, assignee_id: null, done: false, position: 1024 } as any;
     case 'checklist_items': return { text: '', done: false, position: 1024 } as any;

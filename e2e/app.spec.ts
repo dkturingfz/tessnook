@@ -168,3 +168,58 @@ test('调整区域尺寸时，区域内事件包等比例移动且象限不变',
     expect(Math.abs(a[1] - b[1])).toBeLessThan(0.01);
   }
 });
+
+const day = (n: number) => {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+test('轴设置：切换模板与自定义后，象限与坐标轴名称随之改变，卡片位置不变', async ({ page }) => {
+  await signUp(page, 'X', 'x@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '用户访谈', 0.25, 0.3);
+  const before = (await db(page)).events[0];
+  await page.getByRole('button', { name: '轴设置' }).click();
+  await page.locator('.template-card', { hasText: '价值 × 投入' }).click();
+  await page.locator('.modal').getByRole('button', { name: '保存' }).click();
+  await expect(page.locator('.quadrant-Q2 .quadrant-label')).toContainText('速赢');
+  await expect(page.locator('.axis-x')).toContainText('投入');
+
+  await page.getByRole('button', { name: '轴设置' }).click();
+  await page.locator('.template-card', { hasText: '自定义' }).click();
+  await page.getByRole('textbox', { name: '横轴名称' }).fill('');
+  await expect(page.locator('.modal').getByRole('button', { name: '保存' })).toBeDisabled();
+  await page.getByRole('textbox', { name: '横轴名称' }).fill('难度');
+  await page.getByRole('textbox', { name: '左上象限名称' }).fill('金矿');
+  await page.locator('.modal').getByRole('button', { name: '保存' }).click();
+  await expect(page.locator('.quadrant-Q2 .quadrant-label')).toContainText('金矿');
+  const after = await db(page);
+  expect(after.regions[0]).toMatchObject({ template: 'custom' });
+  expect(after.events[0]).toMatchObject({ x: before.x, y: before.y, quadrant: before.quadrant });
+});
+
+test('截止日期提醒：临近截止建议移到紧急象限，一键移动可撤销；暂不提醒', async ({ page }) => {
+  await signUp(page, 'D', 'dl@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '写周报', 0.25, 0.3);
+  await card(page, '写周报').click();
+  await page.getByRole('button', { name: '详情' }).click();
+  await page.locator('.event-details input[type=date]').fill(day(1));
+  await page.locator('.board-head').click();
+  await page.getByRole('button', { name: '关闭看板' }).click();
+
+  const pill = card(page, '写周报').locator('.alert-pill');
+  await expect(pill).toContainText('建议移至 Q1');
+  await expect(page.locator('.bell-count')).toHaveText('1');
+  await pill.click();
+  await expect.poll(async () => (await db(page)).events[0].quadrant).toBe('Q1');
+  await expect(card(page, '写周报').locator('.alert-pill')).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await db(page)).events[0].quadrant).toBe('Q2');
+
+  await page.getByTestId('alerts-bell').click();
+  await page.getByTestId('alert-row').getByRole('button', { name: '暂不提醒' }).click();
+  await expect(page.locator('.bell-count')).toHaveCount(0);
+  await expect(card(page, '写周报').locator('.alert-pill')).toHaveCount(0);
+});

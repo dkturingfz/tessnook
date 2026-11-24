@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
-import { CalendarClock, CheckCircle2, Circle, ListChecks } from 'lucide-react';
+import { AlarmClock, ArrowRight, CalendarClock, CheckCircle2, Circle, ListChecks } from 'lucide-react';
+import { describeDue } from '../../domain/deadlines';
+import { canvasActions } from '../canvasActions';
 import type { EventNodeData } from '../adapter';
 import { EVENT_W } from '../../domain/layout';
 import { useStore, canEdit } from '../../store/store';
@@ -8,13 +10,13 @@ import { dueState, eventAccent, formatDue } from '../../components/format';
 import { Avatar } from '../../components/Avatar';
 
 function EventNodeImpl({ data, selected }: NodeProps<Node<EventNodeData, 'event'>>) {
-  const { event: e, progress, viewers, density, isOpen } = data;
+  const { event: e, progress, viewers, density, isOpen, alert, alertTarget } = data;
   const editable = useStore(canEdit);
   const setStatus = useStore((s) => s.setEventStatus);
   const done = e.status === 'completed';
   const due = dueState(e.due_date, done);
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
-  const hasMeta = e.labels.length > 0 || !!e.due_date || progress.total > 0;
+  const hasMeta = e.labels.length > 0 || !!e.due_date || progress.total > 0 || !!alert;
   // 卡片宽度有限：有截止日期时只显示一个标签，其余折叠为 +n
   const maxLabels = e.due_date && progress.total > 0 ? 1 : 2;
 
@@ -46,8 +48,25 @@ function EventNodeImpl({ data, selected }: NodeProps<Node<EventNodeData, 'event'
           {e.description ? <div className="event-desc">{e.description}</div> : !hasMeta && <div className="event-empty">点击打开看板</div>}
           {hasMeta && (
             <div className="event-meta">
-              {e.labels.slice(0, maxLabels).map((l) => <span key={l} className="chip" title={l}>{l}</span>)}
-              {e.labels.length > maxLabels && <span className="chip more" title={e.labels.slice(maxLabels).join('、')}>+{e.labels.length - maxLabels}</span>}
+              {alert ? (
+                alert.kind === 'escalate' ? (
+                  <button
+                    className="alert-pill escalate nodrag"
+                    disabled={!editable}
+                    title={`${describeDue(alert)}${editable ? '。点击移到紧急象限（可撤销）' : ''}`}
+                    onClick={(ev) => { ev.stopPropagation(); canvasActions.escalate(e.id); }}
+                  >
+                    <ArrowRight size={11} />建议移至 {alertTarget}
+                  </button>
+                ) : (
+                  <span className="alert-pill overdue" title={describeDue(alert)}><AlarmClock size={11} />已逾期 {-alert.daysLeft} 天</span>
+                )
+              ) : (
+                <>
+                  {e.labels.slice(0, maxLabels).map((l) => <span key={l} className="chip" title={l}>{l}</span>)}
+                  {e.labels.length > maxLabels && <span className="chip more" title={e.labels.slice(maxLabels).join('、')}>+{e.labels.length - maxLabels}</span>}
+                </>
+              )}
               <span className="meta-spacer" />
               {e.due_date && (
                 <span className={`meta due due-${due}`} title={`截止 ${e.due_date}`}><CalendarClock size={12} />{formatDue(e.due_date)}</span>

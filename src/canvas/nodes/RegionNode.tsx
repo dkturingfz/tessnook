@@ -1,7 +1,9 @@
 import { memo, useState } from 'react';
 import { NodeResizer, useReactFlow, type NodeProps, type Node } from '@xyflow/react';
-import { GripHorizontal, LayoutGrid, Trash2 } from 'lucide-react';
-import { QUADRANT_META, type Quadrant } from '../../domain/types';
+import { GripHorizontal, LayoutGrid, Settings2, Trash2 } from 'lucide-react';
+import type { Quadrant } from '../../domain/types';
+import { axesOf } from '../../domain/axes';
+import { AxisSettings } from '../AxisSettings';
 import { REGION_HEADER_H } from '../../domain/layout';
 import type { RegionNodeData } from '../adapter';
 import { useStore } from '../../store/store';
@@ -17,6 +19,8 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(region.name);
   const total = counts.Q1 + counts.Q2 + counts.Q3 + counts.Q4;
+  const axes = axesOf(region);
+  const [axisOpen, setAxisOpen] = useState(false);
 
   const commit = () => {
     setEditing(false);
@@ -63,10 +67,13 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
             {region.name}
           </span>
         )}
-        <span className="region-total region-drag">{total} 个事件包</span>
+        <span className="region-total region-drag">{total} 个事件包{axes.id !== 'eisenhower' && ` · ${axes.id === 'custom' ? `${axes.y} × ${axes.x}` : axes.name}`}</span>
         <span className="region-drag region-spacer" />
         {canEdit && (
           <>
+            <button className="icon-btn nodrag" title="轴设置：选择或自定义坐标轴与象限名称" aria-label="轴设置" onClick={() => setAxisOpen(true)}>
+              <Settings2 size={14} />
+            </button>
             <button className="icon-btn nodrag" title="整理此区域（按象限网格排列）" onClick={() => canvasActions.arrangeRegion(region.id)}>
               <LayoutGrid size={14} />
             </button>
@@ -85,18 +92,19 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
       <div className="region-body">
         {ORDER.map((q) => (
           <div key={q} className={`quadrant quadrant-${q} ${highlight === q ? 'is-target' : ''}`}>
-            <div className="quadrant-label" title={QUADRANT_META[q].hint}>
+            <div className="quadrant-label" title={axes.quadrants[q].hint}>
               <span className="q-dot" />
-              <strong>{q}</strong>
-              <span className="q-text">{QUADRANT_META[q].label}</span>
+              {axes.showCodes && <strong>{q}</strong>}
+              <span className={axes.showCodes ? 'q-text' : 'q-text strong'}>{axes.quadrants[q].label}</span>
               {counts[q] > 0 && <span className="q-count">{counts[q]}</span>}
             </div>
           </div>
         ))}
         {/* 坐标轴：沿中心十字线标注方向 */}
-        <div className="axis axis-y"><span>↑ 重要性</span></div>
-        <div className="axis axis-x"><span>紧急性 →</span></div>
+        <div className="axis axis-y"><span>↑ {axes.y}</span></div>
+        <div className="axis axis-x"><span>{axes.x} →</span></div>
       </div>
+      {axisOpen && <AxisSettings region={region} onClose={() => setAxisOpen(false)} />}
     </div>
   );
 }

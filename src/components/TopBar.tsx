@@ -1,10 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { Archive, ChevronDown, History, LogOut, Plus, Rows3, Search, Users } from 'lucide-react';
 import { can, ROLE_LABEL } from '../domain/rules';
+import { quadrantName } from '../domain/axes';
 import type { Role } from '../domain/types';
 import { useStore } from '../store/store';
 import { avatarColor, initials } from './format';
 import { Avatar } from './Avatar';
+import { AlertsMenu } from './AlertsMenu';
 
 export type Dialog = 'archive' | 'members' | 'activity' | null;
 
@@ -78,6 +80,7 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
             <span className="online-label">在线</span>
           </div>
         )}
+        <AlertsMenu />
         <button className="icon-btn" title={density === 'standard' ? '切换为紧凑卡片' : '切换为标准卡片'}
           onClick={() => s.setDensity(density === 'standard' ? 'compact' : 'standard')}><Rows3 size={18} /></button>
         <button className="icon-btn" title="活动记录" onClick={() => onDialog('activity')}><History size={18} /></button>
@@ -108,6 +111,7 @@ export function roleName(r: Role | null) {
 function SearchBox() {
   const events = useStore((s) => s.events);
   const tasks = useStore((s) => s.tasks);
+  const regions = useStore((s) => s.regions);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,13 +123,13 @@ function SearchBox() {
     const evs = Object.values(events)
       .filter((e) => !e.archived_at && (hit(e.title) || hit(e.description) || e.labels.some(hit)))
       .slice(0, 8)
-      .map((e) => ({ key: e.id, eventId: e.id, title: e.title, sub: e.quadrant ? `事件包 · ${e.quadrant}` : '事件包' }));
+      .map((e) => ({ key: e.id, eventId: e.id, title: e.title, sub: e.quadrant ? `事件包 · ${quadrantName(regions[e.region_id!], e.quadrant)}` : '事件包' }));
     const ts = Object.values(tasks)
       .filter((t) => (hit(t.title) || hit(t.description)) && events[t.event_id] && !events[t.event_id].archived_at)
       .slice(0, 8)
       .map((t) => ({ key: t.id, eventId: t.event_id, title: t.title, sub: `任务 · ${events[t.event_id].title}` }));
     return [...evs, ...ts];
-  }, [q, events, tasks]);
+  }, [q, events, tasks, regions]);
 
   return (
     <div className="search menu-anchor">

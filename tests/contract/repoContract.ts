@@ -165,6 +165,29 @@ export function defineRepoContract(h: ContractHarness) {
         expect(find(after, e.id)).toMatchObject({ x: 100, y: 100 });
       }, T);
 
+      it('新区域默认使用重要性 × 紧急性模板', async () => {
+        const { snap } = await workspace();
+        expect(snap.regions[0]).toMatchObject({ template: 'eisenhower', axis_config: null });
+      }, T);
+
+      it('轴模板：自定义配置可保存并读回；过期版本被拒绝', async () => {
+        const { ws, region, snap } = await workspace();
+        const r = snap.regions[0];
+        const axis_config = { x: '难度', y: '收益', quadrants: { Q1: '硬骨头', Q2: '金矿', Q3: '鸡肋', Q4: '坑' }, urgency_x: true } as const;
+        const saved = await alice.repo.update('regions', region, { template: 'custom', axis_config }, r.version);
+        expect(saved).toMatchObject({ template: 'custom', axis_config, version: r.version + 1 });
+        expect((await alice.repo.loadSnapshot(ws)).regions[0]).toMatchObject({ template: 'custom', axis_config });
+        await expect(alice.repo.update('regions', region, { template: 'value_effort', axis_config: null }, r.version)).rejects.toBeInstanceOf(ConflictError);
+      }, T);
+
+      it('轴模板：未知模板或缺少自定义配置被拒绝', async () => {
+        const { ws, region, snap } = await workspace();
+        const r = snap.regions[0];
+        await expect(alice.repo.update('regions', region, { template: 'foo' as any }, r.version)).rejects.toThrow();
+        await expect(alice.repo.update('regions', region, { template: 'custom', axis_config: null }, r.version)).rejects.toThrow();
+        expect((await alice.repo.loadSnapshot(ws)).regions[0]).toMatchObject({ template: 'eisenhower', version: r.version });
+      }, T);
+
       it('删除区域后事件包保留原坐标，区域与象限归属清空', async () => {
         const { ws, region } = await workspace();
         const e = await event(ws, region, 'A', 123, 456);

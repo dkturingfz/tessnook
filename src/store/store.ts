@@ -22,6 +22,7 @@ import {
 } from '../domain/types';
 import { positionBetween } from '../domain/layout';
 import { can, validateStack, type Action } from '../domain/rules';
+import { DEFAULT_LEAD_DAYS, type LeadDays } from '../domain/deadlines';
 // 只依赖后端契约（接口与错误类型），不依赖任何具体实现
 import { ConflictError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
 
@@ -53,11 +54,21 @@ const emptyData = (): Data => ({ regions: {}, events: {}, stacks: {}, lists: {},
 
 // —— 个人界面偏好：只存本地，不同步给其他成员 ——
 const PREFS_KEY = 'tessnook:prefs';
-function loadPrefs(): { panelWidth: number; density: Density; lastWorkspace?: ID } {
+interface Prefs {
+  panelWidth: number;
+  density: Density;
+  lastWorkspace?: ID;
+  /** 截止日期提前提醒的天数 */
+  leadDays: LeadDays;
+  /** 已选择“暂不提醒”的提醒键（截止日期变化后键也会变化） */
+  snoozed: string[];
+}
+const DEFAULT_PREFS: Prefs = { panelWidth: 0.4, density: 'standard', leadDays: DEFAULT_LEAD_DAYS, snoozed: [] };
+function loadPrefs(): Prefs {
   try {
-    return { panelWidth: 0.4, density: 'standard', ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') };
+    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') };
   } catch {
-    return { panelWidth: 0.4, density: 'standard' };
+    return { ...DEFAULT_PREFS };
   }
 }
 function savePrefs(p: Partial<ReturnType<typeof loadPrefs>>) {
@@ -83,6 +94,8 @@ export interface AppState extends Data {
   panelMode: PanelMode;
   panelWidth: number; // 标准模式下的宽度占比
   density: Density;
+  leadDays: LeadDays;
+  snoozed: string[];
   focusRequest: { id: ID; at: number } | null;
   toasts: Toast[];
   layoutHistory: LayoutSnapshot[];
@@ -112,6 +125,8 @@ export interface AppState extends Data {
   setPanelMode(m: PanelMode): void;
   setPanelWidth(w: number): void;
   setDensity(d: Density): void;
+  setLeadDays(d: LeadDays): void;
+  snoozeAlert(key: string): void;
   focusEvent(id: ID): void;
   toast(text: string, kind?: Toast['kind']): void;
   dismissToast(id: number): void;
@@ -256,6 +271,8 @@ export const useStore = create<AppState>((set, get) => {
     panelMode: 'standard',
     panelWidth: prefs.panelWidth,
     density: prefs.density,
+    leadDays: prefs.leadDays,
+    snoozed: prefs.snoozed,
     focusRequest: null,
     toasts: [],
     layoutHistory: [],
@@ -414,6 +431,16 @@ export const useStore = create<AppState>((set, get) => {
       const panelWidth = Math.min(0.85, Math.max(0.25, w));
       set({ panelWidth });
       savePrefs({ panelWidth });
+    },
+    setLeadDays(leadDays) {
+      set({ leadDays });
+      savePrefs({ leadDays });
+    },
+    snoozeAlert(key) {
+      // 只保留最近 500 条，避免无限增长
+      const snoozed = [...get().snoozed.filter((k) => k !== key), key].slice(-500);
+      set({ snoozed });
+      savePrefs({ snoozed });
     },
     setDensity(density) {
       set({ density });

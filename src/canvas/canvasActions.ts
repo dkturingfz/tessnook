@@ -13,6 +13,8 @@ import {
   type Rect,
 } from '../domain/layout';
 import { useStore } from '../store/store';
+import { ESCALATE_TO, escalatePosition } from '../domain/deadlines';
+import { quadrantName } from '../domain/axes';
 
 type ItemRef = { kind: 'event' | 'stack'; id: ID };
 
@@ -63,6 +65,20 @@ function arrange(refs: ItemRef[], label: string) {
 }
 
 export const canvasActions = {
+  /** 截止日期提醒的一键移动：同一高度平移到右侧紧急象限，可用 Ctrl+Z 撤销 */
+  async escalate(eventId: ID) {
+    const s = useStore.getState();
+    const e = s.events[eventId];
+    if (!e || !e.region_id || !e.quadrant) return;
+    if (e.stack_id) return s.toast('该事件包在卡片堆中，请先解除堆叠再移动', 'error');
+    const target = ESCALATE_TO[e.quadrant];
+    const region = s.regions[e.region_id];
+    if (!target || !region) return;
+    const p = escalatePosition(e, region);
+    await s.moveItems([{ kind: 'event', id: e.id, x: p.x, y: p.y, region_id: region.id, quadrant: target, version: e.version }], '按截止日期调整');
+    s.toast(`已移至「${quadrantName(region, target)}」，可按 Ctrl+Z 撤销`, 'success');
+  },
+
   arrangeSelection(refs: ItemRef[]) {
     return arrange(refs, '网格整理');
   },

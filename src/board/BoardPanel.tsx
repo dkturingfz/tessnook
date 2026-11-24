@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive, ArchiveRestore, CalendarClock, CheckCircle2, ChevronDown, Circle, Columns2, Maximize2, PanelRight, SlidersHorizontal, X,
 } from 'lucide-react';
-import { QUADRANT_META } from '../domain/types';
+import { axesOf } from '../domain/axes';
 import { useStore, canEdit as canEditSel, eventProgress } from '../store/store';
 import { EVENT_COLORS, dueState, eventAccent, formatDue, relTime } from '../components/format';
 import { Kanban } from './Kanban';
@@ -92,8 +92,9 @@ export function BoardPanel() {
 
       <div className="board-sub">
         {region && e.quadrant ? (
-          <span className="q-pill" style={{ ['--q' as any]: `var(--${e.quadrant.toLowerCase()}-solid)` }} title={`${region.name} · ${QUADRANT_META[e.quadrant].hint}`}>
-            <span className="q-dot" /><strong>{e.quadrant}</strong>{QUADRANT_META[e.quadrant].label}
+          <span className="q-pill" style={{ ['--q' as any]: `var(--${e.quadrant.toLowerCase()}-solid)` }}
+            title={[region.name, axesOf(region).quadrants[e.quadrant].hint].filter(Boolean).join(' · ')}>
+            <span className="q-dot" />{axesOf(region).showCodes && <strong>{e.quadrant}</strong>}{axesOf(region).quadrants[e.quadrant].label}
           </span>
         ) : <span className="q-pill none">未归属四象限</span>}
         {e.due_date && (

@@ -102,6 +102,22 @@ begin
     jsonb_build_array(jsonb_build_object('kind','event','id',e.id,'x',e.x - 10,'y',e.y,'region_id',null,'quadrant',null,'version',e.version)));
 end $$;
 
+-- 轴模板：合法配置可保存；非法模板、缺配置、超长名称被拒绝
+do $$
+declare r uuid := (select v::uuid from ctx where k='region'); v int;
+begin
+  assert (select template from regions where id = r) = 'eisenhower', 'default template';
+  update regions set template = 'custom', axis_config = '{"x":"难度","y":"收益","quadrants":{"Q1":"硬骨头","Q2":"金矿","Q3":"鸡肋","Q4":"坑"},"urgency_x":false}' where id = r;
+  assert (select axis_config->'quadrants'->>'Q2' from regions where id = r) = '金矿';
+  begin update regions set template = 'foo' where id = r; raise exception 'bad template accepted';
+  exception when check_violation then null; end;
+  begin update regions set axis_config = null where id = r; raise exception 'custom without config accepted';
+  exception when check_violation then null; end;
+  begin update regions set axis_config = jsonb_set(axis_config, '{x}', '"一二三四五六七八九十一二三"') where id = r; raise exception 'long name accepted';
+  exception when check_violation then null; end;
+  update regions set template = 'eisenhower', axis_config = null where id = r;
+end $$;
+
 -- 看板：任务跨列移动；不能移到别的事件包的列
 do $$
 declare ws uuid := (select v::uuid from ctx where k='ws'); e1 uuid := (select v::uuid from ctx where k='e1');

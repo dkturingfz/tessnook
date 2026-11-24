@@ -40,12 +40,25 @@ export interface Versioned {
   updated_at: string;
 }
 
+export type AxisTemplateId = 'eisenhower' | 'value_effort' | 'impact_confidence' | 'custom';
+
+/** 自定义轴：两个轴名、四个象限名（按位置），以及横轴是否代表紧急程度（决定是否启用截止日期升级提醒） */
+export interface CustomAxisConfig {
+  x: string;
+  y: string;
+  quadrants: Record<Quadrant, string>;
+  urgency_x: boolean;
+}
+
 export interface Region extends Versioned {
   name: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  /** 轴模板；旧数据可能缺失，按默认模板处理 */
+  template?: AxisTemplateId;
+  axis_config?: CustomAxisConfig | null;
 }
 
 export interface EventPkg extends Versioned {
@@ -151,13 +164,6 @@ export interface ItemMove {
   quadrant: Quadrant | null;
   version: number;
 }
-
-export const QUADRANT_META: Record<Quadrant, { label: string; hint: string }> = {
-  Q1: { label: '重要 · 紧急', hint: '立即处理' },
-  Q2: { label: '重要 · 不紧急', hint: '计划推进' },
-  Q3: { label: '不重要 · 不紧急', hint: '有空再做' },
-  Q4: { label: '不重要 · 紧急', hint: '尽量委派' },
-};
 
 /** 在线状态：谁在线、正在查看哪个事件包（个人界面状态，不持久化） */
 export interface PresenceState {

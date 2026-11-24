@@ -1,6 +1,8 @@
 // 画布适配层：把业务对象转换成 React Flow 节点。业务数据不依赖 React Flow 的节点格式。
 import type { Node } from '@xyflow/react';
 import type { EventPkg, ID, PresenceState, Quadrant, Region, Stack } from '../domain/types';
+import type { DeadlineAlert } from '../domain/deadlines';
+import { axesOf } from '../domain/axes';
 import type { Density } from '../store/store';
 
 export interface RegionNodeData extends Record<string, unknown> {
@@ -15,12 +17,16 @@ export interface EventNodeData extends Record<string, unknown> {
   viewers: PresenceState[];
   density: Density;
   isOpen: boolean;
+  alert: DeadlineAlert | null;
+  /** escalate 提醒的目标象限短名称，例如 “Q1” 或 “速赢” */
+  alertTarget: string | null;
 }
 export interface StackNodeData extends Record<string, unknown> {
   stack: Stack;
   members: EventPkg[];
   expanded: boolean;
   canEdit: boolean;
+  alertCount: number;
 }
 export interface DraftNodeData extends Record<string, unknown> {
   onSubmit(title: string): void;
@@ -45,6 +51,7 @@ export interface BuildInput {
   hover: { region_id: ID | null; quadrant: Quadrant | null } | null;
   expandedStack: ID | null;
   openEventId: ID | null;
+  alerts: Map<ID, DeadlineAlert>;
 }
 
 export function buildNodes(i: BuildInput): AppNode[] {
@@ -91,6 +98,13 @@ export function buildNodes(i: BuildInput): AppNode[] {
         viewers: viewersOf(e.id),
         density: i.density,
         isOpen: i.openEventId === e.id,
+        alert: i.alerts.get(e.id) ?? null,
+        alertTarget: (() => {
+          const a = i.alerts.get(e.id);
+          if (!a?.target || !e.region_id) return null;
+          const axes = axesOf(i.regions[e.region_id]);
+          return axes.showCodes ? a.target : axes.quadrants[a.target].label;
+        })(),
       },
     });
   }
@@ -106,7 +120,7 @@ export function buildNodes(i: BuildInput): AppNode[] {
       position: { x: s.x, y: s.y },
       zIndex: i.expandedStack === s.id ? 1000 : 10,
       draggable: i.canEdit,
-      data: { stack: s, members, expanded: i.expandedStack === s.id, canEdit: i.canEdit },
+      data: { stack: s, members, expanded: i.expandedStack === s.id, canEdit: i.canEdit, alertCount: members.filter((m) => i.alerts.has(m.id)).length },
     });
   }
   return out;

@@ -1,13 +1,13 @@
 import { memo } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
-import { Layers, Ungroup } from 'lucide-react';
+import { Bell, Layers, Ungroup } from 'lucide-react';
 import type { StackNodeData } from '../adapter';
 import { EVENT_W } from '../../domain/layout';
 import { useStore } from '../../store/store';
 import { eventAccent } from '../../components/format';
 
 function StackNodeImpl({ data, selected }: NodeProps<Node<StackNodeData, 'stack'>>) {
-  const { stack, members, expanded, canEdit } = data;
+  const { stack, members, expanded, canEdit, alertCount } = data;
   const openEvent = useStore((s) => s.openEvent);
   const unstack = useStore((s) => s.unstack);
   const top = members[0];
@@ -20,6 +20,7 @@ function StackNodeImpl({ data, selected }: NodeProps<Node<StackNodeData, 'stack'
         <div className="event-row">
           <Layers size={16} className="stack-icon" />
           <div className="event-title">{stack.name || top?.title}</div>
+          {alertCount > 0 && <span className="stack-alert" title={`${alertCount} 个事件包有截止日期提醒`}><Bell size={11} />{alertCount}</span>}
           <span className="stack-count" title={`${members.length} 个事件包`}>{members.length}</span>
         </div>
         <div className="stack-preview">

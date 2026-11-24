@@ -23,6 +23,7 @@ import { EventNode } from './nodes/EventNode';
 import { StackNode } from './nodes/StackNode';
 import { DraftNode } from './nodes/DraftNode';
 import { canvasActions } from './canvasActions';
+import { useAlerts } from '../store/alerts';
 
 const nodeTypes: NodeTypes = { region: RegionNode, event: EventNode, stack: StackNode, draft: DraftNode } as any;
 
@@ -55,6 +56,7 @@ export function Canvas() {
   const workspaceId = useStore((s) => s.workspace?.id);
   const editable = useStore(canEditSel);
   const actions = useStore.getState();
+  const alerts = useAlerts();
 
   const [nodes, setNodes] = useState<AppNode[]>([]);
   const [hover, setHover] = useState<{ region_id: ID | null; quadrant: any } | null>(null);
@@ -96,7 +98,7 @@ export function Canvas() {
   const built = useMemo(() => {
     const out = buildNodes({
       regions, events, stacks, progress, presence, myId: user?.id, density,
-      canEdit: editable, hover, expandedStack, openEventId,
+      canEdit: editable, hover, expandedStack, openEventId, alerts,
     });
     if (draft) {
       out.push({
@@ -106,7 +108,7 @@ export function Canvas() {
       });
     }
     return out;
-  }, [regions, events, stacks, progress, presence, user?.id, density, editable, hover, expandedStack, openEventId, draft, submitDraft]);
+  }, [regions, events, stacks, progress, presence, user?.id, density, editable, hover, expandedStack, openEventId, draft, submitDraft, alerts]);
 
   useEffect(() => {
     setNodes((prev) => mergeNodes(prev, built, busy.current));
