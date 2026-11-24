@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EVENT_W, GRID_GAP, cardCenter, fanOut, gridArrange, locate, positionBetween, quadrantOf, quadrantRect, REGION_HEADER_H,
+  EVENT_W, GRID_GAP, cardCenter, fanOut, gridArrange, locate, positionBetween, quadrantOf, quadrantRect, REGION_HEADER_H, scaleWithRegion,
 } from '../src/domain/layout';
 import type { Region } from '../src/domain/types';
 
@@ -75,5 +75,25 @@ describe('排序键', () => {
       expect(m).toBeLessThan(hi);
       hi = m;
     }
+  });
+});
+
+describe('区域缩放时条目等比例移动', () => {
+  const from = { x: 0, y: 0, width: 1000, height: 800 + REGION_HEADER_H };
+  it('保持相对位置与象限；卡片大小不变', () => {
+    const r = region(from);
+    const to = { x: 100, y: 50, width: 2000, height: 1600 + REGION_HEADER_H };
+    const r2 = region(to);
+    for (const p of [{ x: 600, y: 100 }, { x: 100, y: 100 }, { x: 100, y: 600 }, { x: 700, y: 650 }]) {
+      const q = scaleWithRegion(p, from, to);
+      expect(quadrantOf(r2, cardCenter(q))).toBe(quadrantOf(r, cardCenter(p)));
+      const c0 = cardCenter(p), c1 = cardCenter(q);
+      expect((c1.x - 100) / 2000).toBeCloseTo(c0.x / 1000, 2);
+      expect((c1.y - 50 - REGION_HEADER_H) / 1600).toBeCloseTo((c0.y - REGION_HEADER_H) / 800, 2);
+    }
+  });
+  it('尺寸不变时只平移', () => {
+    const p = { x: 300, y: 300 };
+    expect(scaleWithRegion(p, from, { ...from, x: 40, y: -20 })).toEqual({ x: 340, y: 280 });
   });
 });

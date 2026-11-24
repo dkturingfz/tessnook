@@ -2,7 +2,7 @@
 // 测试只通过 Repo 接口操作，不接触任何具体数据库，因此也是“如何实现一个新后端”的可执行规范。
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EventPkg, ID, Quadrant, Snapshot } from '../../src/domain/types';
-import { fanOut } from '../../src/domain/layout';
+import { fanOut, scaleWithRegion } from '../../src/domain/layout';
 import { ConflictError, PermissionError, type Repo } from '../../src/data/repo';
 
 export interface ContractHarness {
@@ -135,6 +135,34 @@ export function defineRepoContract(h: ContractHarness) {
         const r = snap.regions[0];
         await alice.repo.moveRegion(region, r.x + 500, r.y + 50, r.version);
         expect(find(await alice.repo.loadSnapshot(ws), e.id)).toMatchObject({ x: 600, y: 150, quadrant: 'Q2', region_id: region });
+      }, T);
+
+      it('调整区域尺寸：区域与条目移动在同一事务中提交', async () => {
+        const { ws, region, snap } = await workspace();
+        const e = await event(ws, region, 'A', 100, 100, 'Q2');
+        const r = snap.regions[0];
+        const rect = { x: r.x, y: r.y, width: r.width * 2, height: r.height * 2 };
+        const target = scaleWithRegion(e, r, rect);
+        const cs = await alice.repo.resizeRegion(region, rect, r.version, [
+          { kind: 'event', id: e.id, ...target, region_id: region, quadrant: 'Q2', version: e.version },
+        ]);
+        expect(cs.upserts.map((u) => u.table).sort()).toEqual(['events', 'regions']);
+        const after = await alice.repo.loadSnapshot(ws);
+        expect(after.regions[0]).toMatchObject({ width: r.width * 2, height: r.height * 2, version: r.version + 1 });
+        expect(find(after, e.id)).toMatchObject({ ...target, quadrant: 'Q2' });
+      }, T);
+
+      it('调整区域尺寸时任一条目版本过期，则整体不生效', async () => {
+        const { ws, region, snap } = await workspace();
+        const e = await event(ws, region, 'A', 100, 100, 'Q2');
+        await alice.repo.update('events', e.id, { title: 'A2' }, e.version);
+        const r = snap.regions[0];
+        await expect(alice.repo.resizeRegion(region, { x: r.x, y: r.y, width: r.width + 100, height: r.height }, r.version, [
+          { kind: 'event', id: e.id, x: 0, y: 0, region_id: region, quadrant: 'Q2', version: e.version },
+        ])).rejects.toBeInstanceOf(ConflictError);
+        const after = await alice.repo.loadSnapshot(ws);
+        expect(after.regions[0]).toMatchObject({ width: r.width, version: r.version });
+        expect(find(after, e.id)).toMatchObject({ x: 100, y: 100 });
       }, T);
 
       it('删除区域后事件包保留原坐标，区域与象限归属清空', async () => {

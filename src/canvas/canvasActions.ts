@@ -1,5 +1,5 @@
 // 画布上的复合操作（整理、缩放区域后的归属校正等），基于纯函数布局算法与 store。
-import type { ID, ItemMove, Quadrant, Region } from '../domain/types';
+import type { ID, ItemMove, Region } from '../domain/types';
 import {
   EVENT_H_COMPACT,
   EVENT_H_STANDARD,
@@ -8,10 +8,22 @@ import {
   cardCenter,
   gridArrange,
   locate,
+  scaleWithRegion,
+  type Point,
+  type Rect,
 } from '../domain/layout';
 import { useStore } from '../store/store';
 
 type ItemRef = { kind: 'event' | 'stack'; id: ID };
+
+/** 属于该区域的条目：未堆叠的事件包（含已归档，恢复时位置正确）与卡片堆 */
+function members(regionId: ID) {
+  const s = useStore.getState();
+  return [
+    ...Object.values(s.events).filter((e) => e.region_id === regionId && !e.stack_id).map((row) => ({ kind: 'event' as const, row })),
+    ...Object.values(s.stacks).filter((st) => st.region_id === regionId).map((row) => ({ kind: 'stack' as const, row })),
+  ];
+}
 
 function rowHeight() {
   return useStore.getState().density === 'compact' ? EVENT_H_COMPACT : EVENT_H_STANDARD;
@@ -68,25 +80,41 @@ export const canvasActions = {
     return arrange(refs, '整理区域');
   },
 
-  /** 区域尺寸变化后，按新几何重新判定区域内条目的象限归属 */
-  async resizeRegion(id: ID, p: { x: number; y: number; width: number; height: number }) {
+  /** 缩放过程中的实时预览：区域内条目的新位置（不写库） */
+  previewResize(id: ID, rect: Rect): Map<ID, Point> {
+    const s = useStore.getState();
+    const before = s.regions[id];
+    const out = new Map<ID, Point>();
+    if (!before) return out;
+    for (const it of members(id)) out.set(it.row.id, scaleWithRegion(it.row, before, rect));
+    return out;
+  },
+
+  /**
+   * 缩放结束：区域内条目按 scaleWithRegion 等比例移动（象限不变），
+   * 新覆盖到的、不属于任何区域的条目加入对应象限；与区域尺寸在同一事务中保存。
+   */
+  async resizeRegion(id: ID, p: Rect) {
     const s = useStore.getState();
     const before = s.regions[id];
     if (!before) return;
-    const geom = { x: Math.round(p.x), y: Math.round(p.y), width: Math.round(p.width), height: Math.round(p.height) };
-    await s.updateRow('regions', id, geom);
-    const after: Region = { ...before, ...geom };
-    const others = Object.values(useStore.getState().regions).map((r) => (r.id === id ? after : r));
+    const rect = { x: Math.round(p.x), y: Math.round(p.y), width: Math.round(p.width), height: Math.round(p.height) };
+    if (rect.x === before.x && rect.y === before.y && rect.width === before.width && rect.height === before.height) return;
+    const after: Region = { ...before, ...rect };
     const moves: ItemMove[] = [];
-    const check = (kind: 'event' | 'stack', it: { id: ID; x: number; y: number; region_id: ID | null; quadrant: Quadrant | null; version: number }) => {
-      const loc = locate(others, cardCenter(it));
-      if (loc.region_id !== it.region_id || loc.quadrant !== it.quadrant) {
-        moves.push({ kind, id: it.id, x: it.x, y: it.y, ...loc, version: it.version });
-      }
-    };
-    const st = useStore.getState();
-    Object.values(st.events).filter((e) => e.region_id === id && !e.archived_at && !e.stack_id).forEach((e) => check('event', e));
-    Object.values(st.stacks).filter((x) => x.region_id === id).forEach((x) => check('stack', x));
-    if (moves.length) await st.moveItems(moves);
+    for (const { kind, row } of members(id)) {
+      const q = scaleWithRegion(row, before, rect);
+      if (q.x !== row.x || q.y !== row.y) moves.push({ kind, id: row.id, x: q.x, y: q.y, region_id: id, quadrant: row.quadrant, version: row.version });
+    }
+    const regions = Object.values(s.regions).map((r) => (r.id === id ? after : r));
+    const free = [
+      ...Object.values(s.events).filter((e) => !e.region_id && !e.archived_at && !e.stack_id).map((row) => ({ kind: 'event' as const, row })),
+      ...Object.values(s.stacks).filter((st) => !st.region_id).map((row) => ({ kind: 'stack' as const, row })),
+    ];
+    for (const { kind, row } of free) {
+      const loc = locate(regions, cardCenter(row));
+      if (loc.region_id === id) moves.push({ kind, id: row.id, x: row.x, y: row.y, ...loc, version: row.version });
+    }
+    await s.resizeRegion(id, rect, moves);
   },
 };

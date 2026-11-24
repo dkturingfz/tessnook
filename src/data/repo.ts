@@ -90,6 +90,13 @@ export interface RecordApi {
   remove(table: TableName, id: ID): Promise<void>;
 }
 
+export interface RegionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface CreateEventInput {
   workspace_id: ID;
   title: string;
@@ -105,6 +112,11 @@ export interface CommandApi {
   createEvent(input: CreateEventInput): Promise<ChangeSet>;
   moveItems(workspaceId: ID, moves: ItemMove[]): Promise<ChangeSet>;
   moveRegion(id: ID, x: number, y: number, version: number): Promise<ChangeSet>;
+  /**
+   * 调整区域位置与尺寸，并在同一事务中应用条目移动（语义同 moveItems，含版本检查）。
+   * 条目的新位置由前端按 domain/layout.scaleWithRegion 计算。
+   */
+  resizeRegion(id: ID, rect: RegionRect, version: number, moves: ItemMove[]): Promise<ChangeSet>;
   deleteRegion(id: ID): Promise<ChangeSet>;
   createStack(workspaceId: ID, eventIds: ID[], name: string | null): Promise<ChangeSet>;
   /** 成员按 domain/layout.fanOut 的规则在卡片堆位置展开 */

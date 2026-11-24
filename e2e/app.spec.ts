@@ -146,3 +146,25 @@ test('删除工作空间后回到空间选择页，且没有错误提示', async
   await page.waitForTimeout(500);
   await expect(page.locator('.toast.error')).toHaveCount(0);
 });
+
+test('调整区域尺寸时，区域内事件包等比例移动且象限不变', async ({ page }) => {
+  await signUp(page, 'R', 'r@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await page.locator('.react-flow__controls-zoomout').click();
+  await page.locator('.react-flow__controls-zoomout').click();
+  await createAt(page, '左上', 0.25, 0.3);
+  await createAt(page, '右下', 0.75, 0.75);
+  const before = await db(page);
+  const h = (await page.locator('.react-flow__resize-control.handle.bottom.right').boundingBox())!;
+  await dragBy(page, h.x + h.width / 2, h.y + h.height / 2, 300, 160);
+  await expect.poll(async () => (await db(page)).regions[0].width).toBeGreaterThan(before.regions[0].width);
+  const after = await db(page);
+  const rel = (e: any, r: any) => [(e.x + 110 - r.x) / r.width, (e.y + 30 - r.y - 36) / (r.height - 36)];
+  for (const e of after.events) {
+    const o = before.events.find((x: any) => x.id === e.id);
+    expect(e.quadrant).toBe(o.quadrant);
+    const [a, b] = [rel(o, before.regions[0]), rel(e, after.regions[0])];
+    expect(Math.abs(a[0] - b[0])).toBeLessThan(0.01);
+    expect(Math.abs(a[1] - b[1])).toBeLessThan(0.01);
+  }
+});

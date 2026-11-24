@@ -75,6 +75,33 @@ begin
   assert exists (select 1 from activity_log where action = 'event.archived' and entity_id = e1);
 end $$;
 
+-- 区域缩放：区域与条目位置原子更新；条目版本过期时整体回滚
+do $$
+declare ws uuid := (select v::uuid from ctx where k='ws'); r regions; e events; cs jsonb;
+begin
+  select * into r from regions where id = (select v::uuid from ctx where k='region');
+  select * into e from events where id = (select v::uuid from ctx where k='e3');
+  cs := resize_region(r.id, r.x, r.y, r.width * 2, r.height, r.version,
+    jsonb_build_array(jsonb_build_object('kind','event','id',e.id,'x',e.x + 10,'y',e.y,'region_id',r.id,'quadrant','Q2','version',e.version)));
+  assert (select width from regions where id = r.id) = r.width * 2, 'region resized';
+  assert (select x from events where id = e.id) = e.x + 10, 'item moved';
+  assert jsonb_array_length(cs->'upserts') = 2, 'changeset has region + event';
+  -- 区域版本正确、但条目版本已过期（e 仍是旧记录）：区域已更新的部分也必须整体回滚
+  select * into r from regions where id = r.id;
+  begin
+    perform resize_region(r.id, r.x, r.y, r.width / 2, r.height, r.version,
+      jsonb_build_array(jsonb_build_object('kind','event','id',e.id,'x',0,'y',0,'region_id',r.id,'quadrant','Q2','version',e.version)));
+    raise exception 'should conflict';
+  exception when sqlstate 'P0409' then null;
+  end;
+  assert (select width from regions where id = r.id) = r.width, 'region update rolled back with the stale item move';
+  -- 还原，后续测试依赖原有区域/事件状态
+  select * into r from regions where id = r.id;
+  select * into e from events where id = e.id;
+  perform resize_region(r.id, r.x, r.y, r.width / 2, r.height, r.version,
+    jsonb_build_array(jsonb_build_object('kind','event','id',e.id,'x',e.x - 10,'y',e.y,'region_id',null,'quadrant',null,'version',e.version)));
+end $$;
+
 -- 看板：任务跨列移动；不能移到别的事件包的列
 do $$
 declare ws uuid := (select v::uuid from ctx where k='ws'); e1 uuid := (select v::uuid from ctx where k='e1');

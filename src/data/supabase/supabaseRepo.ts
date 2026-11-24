@@ -20,6 +20,7 @@ import {
   type CreateEventInput,
   type PresenceState,
   type RealtimeHandlers,
+  type RegionRect,
   type Repo,
   type Subscription,
 } from '../repo';
@@ -189,6 +190,19 @@ export class SupabaseRepo implements Repo {
   }
   moveRegion(id: ID, x: number, y: number, version: number) {
     return this.rpc('move_region', { p_region: id, p_x: x, p_y: y, p_version: version });
+  }
+  async resizeRegion(id: ID, rect: RegionRect, version: number, moves: ItemMove[]): Promise<ChangeSet> {
+    const { data, error } = await this.sb.rpc('resize_region', {
+      p_region: id, p_x: rect.x, p_y: rect.y, p_width: rect.width, p_height: rect.height, p_version: version, p_moves: moves,
+    });
+    // 数据库尚未执行 20261124000000_resize_region 迁移时（PGRST202：函数不存在），退回两步操作（非原子）
+    if (error?.code === 'PGRST202') {
+      const region = await this.update('regions', id, rect, version);
+      const cs = moves.length ? await this.moveItems(region.workspace_id, moves) : { upserts: [], deletes: [] };
+      return { upserts: [{ table: 'regions', row: region }, ...cs.upserts], deletes: cs.deletes };
+    }
+    fail(error);
+    return data as ChangeSet;
   }
   deleteRegion(id: ID) {
     return this.rpc('delete_region', { p_region: id });

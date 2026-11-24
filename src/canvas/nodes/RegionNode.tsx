@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { NodeResizer, type NodeProps, type Node } from '@xyflow/react';
+import { NodeResizer, useReactFlow, type NodeProps, type Node } from '@xyflow/react';
 import { GripHorizontal, LayoutGrid, Trash2 } from 'lucide-react';
 import { QUADRANT_META, type Quadrant } from '../../domain/types';
 import { REGION_HEADER_H } from '../../domain/layout';
@@ -12,6 +12,7 @@ const ORDER: Quadrant[] = ['Q2', 'Q1', 'Q3', 'Q4']; // 2×2 网格中的阅读�
 function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
   const { region, highlight, canEdit, counts } = data;
   const updateRow = useStore((s) => s.updateRow);
+  const { setNodes } = useReactFlow();
   const deleteRegion = useStore((s) => s.deleteRegion);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(region.name);
@@ -32,6 +33,11 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
         minHeight={300}
         lineClassName="region-resize-line"
         handleClassName="region-resize-handle"
+        onResize={(_, p) => {
+          // 实时预览：区域内的事件包与卡片堆随区域等比例移动
+          const pos = canvasActions.previewResize(region.id, p);
+          setNodes((nds) => nds.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)));
+        }}
         onResizeEnd={(_, p) => canvasActions.resizeRegion(region.id, p)}
       />
       <div className="region-header" style={{ height: REGION_HEADER_H }}>

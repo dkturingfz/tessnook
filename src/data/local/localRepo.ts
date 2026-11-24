@@ -25,6 +25,7 @@ import {
   type CreateEventInput,
   type PresenceState,
   type RealtimeHandlers,
+  type RegionRect,
   type Repo,
   type Subscription,
 } from '../repo';
@@ -449,33 +450,51 @@ export class LocalRepo implements Repo {
   async moveItems(workspaceId: ID, moves: ItemMove[]) {
     return this.tx(workspaceId, (db, cs) => {
       this.require(db, workspaceId, 'edit');
-      for (const m of moves) {
-        if (m.region_id) {
-          const r = db.regions.find((x) => x.id === m.region_id);
-          if (!r || r.workspace_id !== workspaceId) throw new Error('目标区域不存在');
-        }
-        const quadrant = m.region_id ? m.quadrant : null;
-        if (m.kind === 'event') {
-          const e = this.find(db, 'events', m.id);
-          if (e.workspace_id !== workspaceId) throw new PermissionError();
-          this.checkVersion(e, m.version);
-          if (e.stack_id) throw new Error('堆叠中的事件包需随卡片堆移动');
-          Object.assign(e, { x: m.x, y: m.y, region_id: m.region_id, quadrant });
+      this.applyMoves(db, workspaceId, moves, cs);
+    });
+  }
+
+  /** moveItems 的事务体；resizeRegion 在同一事务中复用 */
+  private applyMoves(db: DB, workspaceId: ID, moves: ItemMove[], cs: ChangeSet) {
+    for (const m of moves) {
+      if (m.region_id) {
+        const r = db.regions.find((x) => x.id === m.region_id);
+        if (!r || r.workspace_id !== workspaceId) throw new Error('目标区域不存在');
+      }
+      const quadrant = m.region_id ? m.quadrant : null;
+      if (m.kind === 'event') {
+        const e = this.find(db, 'events', m.id);
+        if (e.workspace_id !== workspaceId) throw new PermissionError();
+        this.checkVersion(e, m.version);
+        if (e.stack_id) throw new Error('堆叠中的事件包需随卡片堆移动');
+        Object.assign(e, { x: m.x, y: m.y, region_id: m.region_id, quadrant });
+        this.touch(e, cs, 'events');
+      } else {
+        const s = this.find(db, 'stacks', m.id);
+        if (s.workspace_id !== workspaceId) throw new PermissionError();
+        this.checkVersion(s, m.version);
+        const dx = m.x - s.x, dy = m.y - s.y;
+        Object.assign(s, { x: m.x, y: m.y, region_id: m.region_id, quadrant });
+        this.touch(s, cs, 'stacks');
+        // 成员跟随卡片堆：同步象限归属，并平移坐标（解除堆叠时据此展开）
+        for (const e of db.events.filter((x) => x.stack_id === s.id)) {
+          Object.assign(e, { x: e.x + dx, y: e.y + dy, region_id: m.region_id, quadrant });
           this.touch(e, cs, 'events');
-        } else {
-          const s = this.find(db, 'stacks', m.id);
-          if (s.workspace_id !== workspaceId) throw new PermissionError();
-          this.checkVersion(s, m.version);
-          const dx = m.x - s.x, dy = m.y - s.y;
-          Object.assign(s, { x: m.x, y: m.y, region_id: m.region_id, quadrant });
-          this.touch(s, cs, 'stacks');
-          // 成员跟随卡片堆：同步象限归属，并平移坐标（解除堆叠时据此展开）
-          for (const e of db.events.filter((x) => x.stack_id === s.id)) {
-            Object.assign(e, { x: e.x + dx, y: e.y + dy, region_id: m.region_id, quadrant });
-            this.touch(e, cs, 'events');
-          }
         }
       }
+    }
+  }
+
+  async resizeRegion(id: ID, rect: RegionRect, version: number, moves: ItemMove[]) {
+    const ws = this.find(readDB(), 'regions', id).workspace_id;
+    return this.tx(ws, (db, cs) => {
+      this.require(db, ws, 'edit');
+      const r = this.find(db, 'regions', id);
+      this.checkVersion(r, version);
+      if (rect.width < 200 || rect.height < 200) throw new Error('区域尺寸过小');
+      Object.assign(r, { x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+      this.touch(r, cs, 'regions');
+      this.applyMoves(db, ws, moves, cs);
     });
   }
 

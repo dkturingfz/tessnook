@@ -23,7 +23,7 @@ import {
 import { positionBetween } from '../domain/layout';
 import { can, validateStack, type Action } from '../domain/rules';
 // 只依赖后端契约（接口与错误类型），不依赖任何具体实现
-import { ConflictError, type BackendInfo, type Repo, type Subscription } from '../data/repo';
+import { ConflictError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
 
 type Rows<T> = Record<ID, T>;
 export type PanelMode = 'standard' | 'wide' | 'focus';
@@ -125,6 +125,7 @@ export interface AppState extends Data {
   createEvent(title: string, x: number, y: number, region_id: ID | null, quadrant: Quadrant | null): Promise<ID | null>;
   moveItems(moves: ItemMove[], historyLabel?: string): Promise<void>;
   moveRegion(id: ID, x: number, y: number, version: number): Promise<void>;
+  resizeRegion(id: ID, rect: RegionRect, moves: ItemMove[]): Promise<void>;
   deleteRegion(id: ID): Promise<void>;
   createRegion(x: number, y: number): Promise<void>;
   createStack(eventIds: ID[]): Promise<void>;
@@ -507,6 +508,20 @@ export const useStore = create<AppState>((set, get) => {
     async moveRegion(id, x, y, version) {
       patchLocal('regions', id, { x, y });
       const cs = await mutate('移动区域', () => backend().moveRegion(id, x, y, version));
+      if (cs) get().apply(cs);
+    },
+
+    async resizeRegion(id, rect, moves) {
+      const r = get().regions[id];
+      if (!r) return;
+      const version = r.version;
+      patchLocal('regions', id, rect);
+      for (const m of moves) {
+        patchLocal(m.kind === 'event' ? 'events' : 'stacks', m.id, {
+          x: m.x, y: m.y, region_id: m.region_id, quadrant: m.region_id ? m.quadrant : null,
+        });
+      }
+      const cs = await mutate('调整区域', () => backend().resizeRegion(id, rect, version, moves));
       if (cs) get().apply(cs);
     },
 

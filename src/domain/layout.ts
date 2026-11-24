@@ -131,3 +131,19 @@ export function boundingBox(points: Point[]): Rect {
   const y = Math.min(...ys);
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
+
+/**
+ * 区域缩放时，区域内条目随之等比例移动：按卡片中心在区域主体中的相对位置换算到新尺寸。
+ * 以中心计算，因此条目留在原象限；卡片本身大小不变。
+ */
+export function scaleWithRegion(p: Point, from: Rect, to: Rect): Point {
+  const a = regionBody(from as Region);
+  const b = regionBody(to as Region);
+  const c = cardCenter(p);
+  const u = a.width > 0 ? (c.x - a.x) / a.width : 0.5;
+  const v = a.height > 0 ? (c.y - a.y) / a.height : 0.5;
+  return {
+    x: Math.round(b.x + u * b.width - EVENT_W / 2),
+    y: Math.round(b.y + v * b.height - EVENT_H_NOMINAL / 2),
+  };
+}
