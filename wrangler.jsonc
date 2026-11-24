@@ -1,0 +1,13 @@
+// Cloudflare Workers 部署配置：纯静态资源（没有 Worker 脚本），由 Workers Builds 从 GitHub 自动构建部署。
+// 构建命令：npm run build；部署命令：npx wrangler deploy
+// VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 必须配置为“构建变量”（构建时写入前端），不是运行时变量。
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tessnook",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    // 单页应用：未命中的路径返回 index.html
+    "not_found_handling": "single-page-application"
+  }
+}

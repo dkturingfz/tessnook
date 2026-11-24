@@ -30,18 +30,24 @@ npm run dev          # http://localhost:5173
 
    脚本会以 3 个一次性账户检查认证、RLS 隔离、角色权限、事务 RPC、版本冲突、邀请、Realtime 推送、在线状态和成员移除后的推送撤销，结束时删除测试工作空间。
 
-### 部署到 Cloudflare Pages
+### 部署到 Cloudflare Workers
 
-Pages 项目连接 GitHub 仓库，每次推送到 `main` 都会自动构建上线，其他分支生成预览地址。
+网站以 Workers 静态资源的形式部署（配置见 `wrangler.jsonc`），由 Workers Builds 连接 GitHub 仓库：推送到 `main` 自动上线，其他分支生成预览版本。
 
 | 设置 | 值 |
 |---|---|
 | Build command | `npm run build` |
-| Build output directory | `dist` |
-| 环境变量 | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（构建时写入前端；anon/publishable key 本身就是公开的） |
+| Deploy command | `npx wrangler deploy`（默认值） |
+| 构建变量（Settings → Build → Variables） | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`。它们在构建时写入前端，所以必须是**构建变量**，不能是运行时变量；anon/publishable key 本身就是公开的 |
 | Node 版本 | 由 `.nvmrc` 指定（22） |
 
-`public/_headers` 设置了安全响应头，并让带哈希的静态资源长期缓存。上线后，请在 Supabase 的 Authentication → URL Configuration 中把 Site URL 设为网站地址。
+本地预览生产构建（使用 Cloudflare 的 workerd 运行时）：
+
+```bash
+npm run build && npx wrangler dev
+```
+
+`public/_headers` 设置了安全响应头，并让带哈希的静态资源长期缓存；未命中的路径返回 `index.html`（单页应用模式）。上线后，请在 Supabase 的 Authentication → URL Configuration 中把 Site URL 设为网站地址。
 
 ## 测试
 
