@@ -32,7 +32,16 @@ npm run dev          # http://localhost:5173
 
 ### 部署到 Cloudflare Pages
 
-构建命令填 `npm run build`，输出目录填 `dist`，并在 Pages 的环境变量中设置上面两个 `VITE_` 变量。
+Pages 项目连接 GitHub 仓库，每次推送到 `main` 都会自动构建上线，其他分支生成预览地址。
+
+| 设置 | 值 |
+|---|---|
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| 环境变量 | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（构建时写入前端；anon/publishable key 本身就是公开的） |
+| Node 版本 | 由 `.nvmrc` 指定（22） |
+
+`public/_headers` 设置了安全响应头，并让带哈希的静态资源长期缓存。上线后，请在 Supabase 的 Authentication → URL Configuration 中把 Site URL 设为网站地址。
 
 ## 测试
 
