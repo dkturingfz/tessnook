@@ -28,3 +28,17 @@ export function relTime(iso: string) {
 }
 
 export const EVENT_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+
+/** 头像配色：取自品牌色的加深版本，保证白色文字可读 */
+const AVATAR_COLORS = ['#3E7C73', '#5A7FA3', '#7D68A0', '#B07A45', '#4D6B66', '#8A5A7A', '#5E7F4A', '#46617F'];
+export function avatarColor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+/** 事件包的强调色：自定义颜色优先，否则使用所在象限的品牌色 */
+export function eventAccent(color: string | null, quadrant: string | null) {
+  if (color) return color;
+  return quadrant ? `var(--${quadrant.toLowerCase()}-solid)` : 'var(--accent-default)';
+}

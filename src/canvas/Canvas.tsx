@@ -11,7 +11,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import {
-  Archive, CheckCircle2, Grid3x3, Layers, LayoutGrid, Magnet, Plus, RotateCcw, SquareDashed, Undo2, X,
+  Archive, CheckCircle2, Grid3x3, Layers, LayoutGrid, Magnet, Map as MapIcon, Plus, RotateCcw, SquareDashed, Undo2, X,
 } from 'lucide-react';
 import type { ID, ItemMove } from '../domain/types';
 import { EVENT_W, cardCenter, locate } from '../domain/layout';
@@ -287,7 +287,7 @@ export function Canvas() {
       >
         {view.grid && <Background variant={BackgroundVariant.Lines} gap={32} color="var(--grid)" />}
         <Controls showInteractive={false} position="bottom-left" />
-        {view.minimap && <MiniMap pannable zoomable position="bottom-right" nodeColor={(n) => (n.type === 'region' ? 'var(--region-mini)' : 'var(--accent-default)')} />}
+        {view.minimap && <MiniMap pannable zoomable position="bottom-right" nodeColor={(n) => (n.type === 'region' ? 'var(--region-mini)' : 'var(--primary)')} maskColor="var(--minimap-mask)" />}
       </ReactFlow>
 
       <div className="canvas-toolbar">
@@ -302,7 +302,7 @@ export function Canvas() {
         <span className="sep" />
         <button className={view.grid ? 'on' : ''} title="显示背景网格" onClick={() => setView((v: any) => ({ ...v, grid: !v.grid }))}><Grid3x3 size={16} /></button>
         <button className={view.snap ? 'on' : ''} title="拖拽时吸附排列网格" onClick={() => setView((v: any) => ({ ...v, snap: !v.snap }))}><Magnet size={16} /></button>
-        <button className={view.minimap ? 'on' : ''} title="小地图" onClick={() => setView((v: any) => ({ ...v, minimap: !v.minimap }))}>地图</button>
+        <button className={view.minimap ? 'on' : ''} title="小地图" onClick={() => setView((v: any) => ({ ...v, minimap: !v.minimap }))}><MapIcon size={16} /></button>
         {editable && layoutHistory.length > 0 && (
           <button title="撤销最近一次整理 (Ctrl+Z)" onClick={() => actions.undoLayout()}><Undo2 size={16} />撤销整理</button>
         )}

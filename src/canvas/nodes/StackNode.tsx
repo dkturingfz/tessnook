@@ -4,6 +4,7 @@ import { Layers, Ungroup } from 'lucide-react';
 import type { StackNodeData } from '../adapter';
 import { EVENT_W } from '../../domain/layout';
 import { useStore } from '../../store/store';
+import { eventAccent } from '../../components/format';
 
 function StackNodeImpl({ data, selected }: NodeProps<Node<StackNodeData, 'stack'>>) {
   const { stack, members, expanded, canEdit } = data;
@@ -15,19 +16,22 @@ function StackNodeImpl({ data, selected }: NodeProps<Node<StackNodeData, 'stack'
     <div className={`stack ${selected ? 'is-selected' : ''}`} style={{ width: EVENT_W }} data-testid="stack-card">
       <div className="stack-layer l3" />
       <div className="stack-layer l2" />
-      <div className="event-card stack-top" style={{ ['--accent' as any]: top?.color ?? 'var(--accent-default)' }}>
+      <div className="event-card stack-top" style={{ ['--accent' as any]: eventAccent(top?.color ?? null, stack.quadrant) }}>
         <div className="event-row">
           <Layers size={16} className="stack-icon" />
           <div className="event-title">{stack.name || top?.title}</div>
-          <span className="stack-count">{members.length}</span>
+          <span className="stack-count" title={`${members.length} 个事件包`}>{members.length}</span>
         </div>
-        <div className="event-desc">点击展开 · 共 {members.length} 个事件包</div>
+        <div className="stack-preview">
+          {members.slice(0, 2).map((m) => <span key={m.id} className={m.status === 'completed' ? 'is-done' : ''}>{m.title}</span>)}
+          {members.length > 2 && <span className="muted">还有 {members.length - 2} 个…</span>}
+        </div>
       </div>
       {expanded && (
         <div className="stack-popover nodrag nowheel" onClick={(e) => e.stopPropagation()}>
           {members.map((m) => (
             <button key={m.id} className={`stack-item ${m.status === 'completed' ? 'is-done' : ''}`} onClick={() => openEvent(m.id)}>
-              <span className="dot" style={{ background: m.color ?? 'var(--accent-default)' }} />
+              <span className="dot" style={{ background: eventAccent(m.color, m.quadrant) }} />
               {m.title}
             </button>
           ))}

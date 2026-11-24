@@ -24,8 +24,9 @@ import { CalendarClock, CheckSquare, GripVertical, MoreHorizontal, Square, Trash
 import type { BoardList, ID, Task } from '../domain/types';
 import { positionBetween } from '../domain/layout';
 import { useStore, canEdit } from '../store/store';
-import { dueState, formatDue, initials } from '../components/format';
+import { dueState, formatDue } from '../components/format';
 import { TaskDetail } from './TaskDetail';
+import { Avatar } from '../components/Avatar';
 
 const L = (id: ID) => `l:${id}`;
 const T = (id: ID) => `t:${id}`;
@@ -258,7 +259,7 @@ function TaskCard({ task, overlay }: { task: Task; overlay?: boolean }) {
           {task.labels.map((l) => <span key={l} className="chip">{l}</span>)}
           {task.due_date && <span className={`meta due-${due}`}><CalendarClock size={12} />{formatDue(task.due_date)}</span>}
           {items.length > 0 && <span className="meta"><CheckSquare size={12} />{items.filter((c) => c.done).length}/{items.length}</span>}
-          {assignee && <span className="avatar xs" title={assignee.display_name}>{initials(assignee.display_name)}</span>}
+          {assignee && <Avatar id={assignee.user_id} name={assignee.display_name} size="xs" title={`负责人：${assignee.display_name}`} />}
         </div>
       )}
     </div>

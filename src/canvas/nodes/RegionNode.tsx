@@ -15,6 +15,7 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
   const deleteRegion = useStore((s) => s.deleteRegion);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(region.name);
+  const total = counts.Q1 + counts.Q2 + counts.Q3 + counts.Q4;
 
   const commit = () => {
     setEditing(false);
@@ -56,6 +57,7 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
             {region.name}
           </span>
         )}
+        <span className="region-total region-drag">{total} 个事件包</span>
         <span className="region-drag region-spacer" />
         {canEdit && (
           <>
@@ -77,14 +79,17 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
       <div className="region-body">
         {ORDER.map((q) => (
           <div key={q} className={`quadrant quadrant-${q} ${highlight === q ? 'is-target' : ''}`}>
-            <div className="quadrant-label">
-              <strong>{q}</strong> {QUADRANT_META[q].label}
-              <span className="quadrant-count">{counts[q] || ''}</span>
+            <div className="quadrant-label" title={QUADRANT_META[q].hint}>
+              <span className="q-dot" />
+              <strong>{q}</strong>
+              <span className="q-text">{QUADRANT_META[q].label}</span>
+              {counts[q] > 0 && <span className="q-count">{counts[q]}</span>}
             </div>
           </div>
         ))}
+        {/* 坐标轴：沿中心十字线标注方向 */}
+        <div className="axis axis-y"><span>↑ 重要性</span></div>
         <div className="axis axis-x"><span>紧急性 →</span></div>
-        <div className="axis axis-y"><span>重要性 →</span></div>
       </div>
     </div>
   );

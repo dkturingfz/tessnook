@@ -3,7 +3,8 @@ import { Archive, ChevronDown, History, LogOut, Plus, Rows3, Search, Users } fro
 import { can, ROLE_LABEL } from '../domain/rules';
 import type { Role } from '../domain/types';
 import { useStore } from '../store/store';
-import { initials } from './format';
+import { avatarColor, initials } from './format';
+import { Avatar } from './Avatar';
 
 export type Dialog = 'archive' | 'members' | 'activity' | null;
 
@@ -20,11 +21,11 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
   const [wsMenu, setWsMenu] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
 
-  // 同一用户可能开多个标签页，按用户去重
+  // 同一用户可能开多个标签页，按用户去重；自己的头像已在右上角，不重复显示
   const online = useMemo(() => {
-    const m = new Map(presence.map((p) => [p.user_id, p]));
+    const m = new Map(presence.filter((p) => p.user_id !== user.id).map((p) => [p.user_id, p]));
     return [...m.values()];
-  }, [presence]);
+  }, [presence, user.id]);
 
   return (
     <header className="topbar">
@@ -70,19 +71,20 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
 
       <div className="topbar-right">
         {pending > 0 && <span className="saving">保存中…</span>}
-        <div className="online" title={online.map((p) => p.display_name).join('、') + ' 在线'}>
-          {online.slice(0, 5).map((p) => (
-            <span key={p.user_id} className={`avatar sm ${p.user_id === user.id ? 'me' : ''}`}>{initials(p.display_name)}</span>
-          ))}
-          {online.length > 5 && <span className="avatar sm">+{online.length - 5}</span>}
-        </div>
+        {online.length > 0 && (
+          <div className="online" title={online.map((p) => p.display_name).join('、') + ' 在线'}>
+            {online.slice(0, 5).map((p) => <Avatar key={p.user_id} id={p.user_id} name={p.display_name} ring />)}
+            {online.length > 5 && <span className="avatar sm more">+{online.length - 5}</span>}
+            <span className="online-label">在线</span>
+          </div>
+        )}
         <button className="icon-btn" title={density === 'standard' ? '切换为紧凑卡片' : '切换为标准卡片'}
           onClick={() => s.setDensity(density === 'standard' ? 'compact' : 'standard')}><Rows3 size={18} /></button>
         <button className="icon-btn" title="活动记录" onClick={() => onDialog('activity')}><History size={18} /></button>
         <button className="icon-btn" title="归档中心" onClick={() => onDialog('archive')} data-testid="open-archive"><Archive size={18} /></button>
         <button className="icon-btn" title="成员与邀请" onClick={() => onDialog('members')}><Users size={18} /></button>
         <div className="menu-anchor">
-          <button className="avatar me" onClick={() => setUserMenu(!userMenu)} title={user.email}>{initials(user.display_name)}</button>
+          <button className="avatar md me" style={{ background: avatarColor(user.id) }} onClick={() => setUserMenu(!userMenu)} title={user.email} aria-label="账户菜单">{initials(user.display_name)}</button>
           {userMenu && (
             <div className="dropdown right" onMouseLeave={() => setUserMenu(false)}>
               <div className="menu-note">{user.display_name}<br /><span className="muted">{user.email}</span></div>

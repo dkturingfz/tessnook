@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Archive, ArchiveRestore, CheckCircle2, ChevronDown, ChevronRight, Circle, Columns2, Maximize2, PanelRight, X,
+  Archive, ArchiveRestore, CalendarClock, CheckCircle2, ChevronDown, Circle, Columns2, Maximize2, PanelRight, SlidersHorizontal, X,
 } from 'lucide-react';
 import { QUADRANT_META } from '../domain/types';
 import { useStore, canEdit as canEditSel, eventProgress } from '../store/store';
-import { EVENT_COLORS, initials, relTime } from '../components/format';
+import { EVENT_COLORS, dueState, eventAccent, formatDue, relTime } from '../components/format';
 import { Kanban } from './Kanban';
+import { Avatar } from '../components/Avatar';
 
 export function BoardPanel() {
   const id = useStore((s) => s.openEventId)!;
@@ -60,7 +61,7 @@ export function BoardPanel() {
   return (
     <aside ref={panelRef} className={`board-panel mode-${mode}`} style={{ width: panelWidth }} data-testid="board-panel">
       {mode !== 'focus' && <div className="resize-handle" onPointerDown={startResize} title="拖动调整宽度" />}
-      <header className="board-head" style={{ ['--accent' as any]: e.color ?? 'var(--accent-default)' }}>
+      <header className="board-head" style={{ ['--accent' as any]: eventAccent(e.color, e.quadrant) }}>
         <button className="status-btn" disabled={readOnly} title={done ? '标记为进行中' : '标记完成'}
           onClick={() => s.setEventStatus(e.id, done ? 'active' : 'completed')}>
           {done ? <CheckCircle2 size={20} /> : <Circle size={20} />}
@@ -71,7 +72,7 @@ export function BoardPanel() {
           onKeyDown={(x) => x.key === 'Enter' && (x.target as HTMLInputElement).blur()} />
         {viewers.length > 0 && (
           <div className="viewers" title={`${viewers.map((v) => v.display_name).join('、')} 也在查看`}>
-            {viewers.map((v) => <span key={v.user_id} className="avatar sm">{initials(v.display_name)}</span>)}
+            {viewers.map((v) => <Avatar key={v.user_id} id={v.user_id} name={v.display_name} />)}
           </div>
         )}
         <div className="mode-switch" role="group" aria-label="显示模式">
@@ -90,19 +91,32 @@ export function BoardPanel() {
       )}
 
       <div className="board-sub">
-        <span className="muted">
-          {region ? `${region.name} · ${e.quadrant} ${QUADRANT_META[e.quadrant!].label}` : '未归属四象限区域'}
-          {progress.total > 0 && ` · 任务 ${progress.done}/${progress.total}`}
-        </span>
-        <button className="link" onClick={() => setShowDetails(!showDetails)}>
-          {showDetails ? <ChevronDown size={14} /> : <ChevronRight size={14} />}详情
-        </button>
-        {!readOnly && (
-          <span className="board-actions">
-            <button onClick={() => s.archiveEvent(e.id, false)}><Archive size={14} />归档</button>
-            {!done && <button onClick={() => s.archiveEvent(e.id, true)}><CheckCircle2 size={14} />完成并归档</button>}
+        {region && e.quadrant ? (
+          <span className="q-pill" style={{ ['--q' as any]: `var(--${e.quadrant.toLowerCase()}-solid)` }} title={`${region.name} · ${QUADRANT_META[e.quadrant].hint}`}>
+            <span className="q-dot" /><strong>{e.quadrant}</strong>{QUADRANT_META[e.quadrant].label}
+          </span>
+        ) : <span className="q-pill none">未归属四象限</span>}
+        {e.due_date && (
+          <span className={`q-pill due-${dueState(e.due_date, done)}`}><CalendarClock size={12} />{formatDue(e.due_date)}截止</span>
+        )}
+        {progress.total > 0 && (
+          <span className="board-progress" title={`任务完成 ${progress.done}/${progress.total}`}>
+            <span className="progress"><span style={{ width: `${(progress.done / progress.total) * 100}%` }} /></span>
+            {progress.done}/{progress.total}
           </span>
         )}
+        <span className="board-actions">
+          {!readOnly && (
+            <>
+              <button className="icon-btn" title="归档（从画布隐藏，可在归档中心恢复）" aria-label="归档" onClick={() => s.archiveEvent(e.id, false)}><Archive size={16} /></button>
+              {!done && <button onClick={() => s.archiveEvent(e.id, true)}><CheckCircle2 size={14} />完成并归档</button>}
+            </>
+          )}
+          <button className={`icon-btn ${showDetails ? 'on' : ''}`} title={showDetails ? '收起详情' : '编辑描述、标签、截止日期与颜色'}
+            aria-label="详情" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>
+            {showDetails ? <ChevronDown size={16} /> : <SlidersHorizontal size={16} />}
+          </button>
+        </span>
       </div>
 
       {showDetails && (

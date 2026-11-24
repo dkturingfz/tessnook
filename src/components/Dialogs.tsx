@@ -3,8 +3,9 @@ import { ArchiveRestore, Copy, Eye, X } from 'lucide-react';
 import type { Activity, Role } from '../domain/types';
 import { can } from '../domain/rules';
 import { useStore } from '../store/store';
-import { initials, relTime } from './format';
+import { relTime } from './format';
 import { roleName } from './TopBar';
+import { Avatar } from './Avatar';
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose(): void; children: React.ReactNode; wide?: boolean }) {
   useEffect(() => {
@@ -102,7 +103,7 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
       <div className="member-list">
         {members.map((m) => (
           <div key={m.user_id} className="member-row">
-            <span className="avatar sm">{initials(m.display_name)}</span>
+            <Avatar id={m.user_id} name={m.display_name} />
             <div className="grow">
               {m.display_name} {m.user_id === me.id && <span className="muted">（你）</span>}
               {presence.some((p) => p.user_id === m.user_id) && <span className="online-dot" title="在线" />}
@@ -169,7 +170,7 @@ export function ActivityDialog({ onClose }: { onClose(): void }) {
       <div className="activity">
         {items?.map((a) => (
           <div key={a.id} className="activity-row">
-            <span className="avatar xs">{initials(members.find((m) => m.user_id === a.actor_id)?.display_name ?? '?')}</span>
+            <Avatar id={a.actor_id ?? '?'} name={members.find((m) => m.user_id === a.actor_id)?.display_name ?? '?'} size="xs" />
             <span className="grow">
               <strong>{members.find((m) => m.user_id === a.actor_id)?.display_name ?? '成员'}</strong> {a.summary}
             </span>
