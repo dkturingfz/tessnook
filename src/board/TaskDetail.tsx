@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckSquare, Square, Trash2, X } from 'lucide-react';
 import type { ID, Task } from '../domain/types';
 import { useStore } from '../store/store';
@@ -123,10 +123,12 @@ export function TaskDetail({ taskId, readOnly, onClose }: { taskId: ID; readOnly
 
 function ChecklistText({ id, text, readOnly }: { id: ID; text: string; readOnly: boolean }) {
   const [v, setV] = useState(text);
-  useEffect(() => setV(text), [text]);
+  const ref = useRef<HTMLInputElement>(null);
+  // 正在编辑这一项时不被他人的修改覆盖（失焦时提交）
+  useEffect(() => { if (document.activeElement !== ref.current) setV(text); }, [text]);
   const updateRow = useStore((s) => s.updateRow);
   return (
-    <input className="check-text" value={v} disabled={readOnly} onChange={(e) => setV(e.target.value)}
+    <input ref={ref} className="check-text" value={v} disabled={readOnly} onChange={(e) => setV(e.target.value)}
       onBlur={() => v.trim() && v !== text ? updateRow('checklist_items', id, { text: v.trim() }) : setV(text)}
       onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
   );

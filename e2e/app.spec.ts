@@ -716,3 +716,36 @@ test('连续快速新建：回车创建后立即在别处双击新建，每个�
   await page.waitForTimeout(500);
   expect((await db(page)).events.map((e: any) => e.title).sort()).toEqual(['第一个', '第三个', '第二个'].sort());
 });
+
+test('正在输入时，其他成员改动同一事件包（如拖动卡片）不会覆盖正在输入的内容', async ({ context }) => {
+  const A = await context.newPage();
+  await signUp(A, 'Alice', 'typing-a@x.com');
+  await A.getByRole('button', { name: '创建' }).click();
+  await createAt(A, '共享事件', 0.25, 0.3);
+  await A.getByTitle('成员与邀请').click();
+  await A.fill('.invite input[type=email]', 'typing-b@x.com');
+  await A.getByText('生成邀请链接').click();
+  const link = await A.locator('.invite-link code').innerText();
+  await A.keyboard.press('Escape');
+  const B = await context.newPage();
+  await signUp(B, 'Bob', 'typing-b@x.com', link);
+  await expect(card(B, '共享事件')).toBeVisible();
+
+  // A 打开看板，开始写描述（尚未离开输入框）
+  await card(A, '共享事件').click();
+  await A.getByRole('button', { name: '详情' }).click();
+  const desc = A.locator('.event-details textarea');
+  await desc.click();
+  await desc.pressSequentially('写到一半的描述');
+  const v0 = (await db(A)).events[0].version;
+  // B 用方向键移动同一张卡片 → A 收到新版本
+  await card(B, '共享事件').click({ modifiers: ['Shift'] });
+  await B.keyboard.press('ArrowRight');
+  await expect.poll(async () => (await db(A)).events[0].version).toBeGreaterThan(v0);
+  await A.waitForTimeout(300);
+  await expect(desc).toHaveValue('写到一半的描述');
+  await expect(desc).toBeFocused();
+  // 离开输入框后正常保存，B 也看得到
+  await A.locator('.board-head').click();
+  await expect.poll(async () => (await db(B)).events[0].description).toBe('写到一半的描述');
+});

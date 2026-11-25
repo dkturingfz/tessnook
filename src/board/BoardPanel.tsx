@@ -27,11 +27,17 @@ export function BoardPanel() {
   const [showDetails, setShowDetails] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // 其他成员的修改同步到表单；正在输入的那一栏不覆盖（失焦时提交），否则同事只是拖动了卡片，
+  // 版本号一变，正在写的内容就会被换回旧值。切换到另一个事件包时全部重置。
+  const shownId = useRef(e?.id);
   useEffect(() => {
     if (!e) return;
-    setTitle(e.title);
-    setDesc(e.description);
-    setLabels(e.labels.join(', '));
+    const switched = shownId.current !== e.id;
+    shownId.current = e.id;
+    const editing = (f: string) => !switched && document.activeElement?.getAttribute('data-field') === f;
+    if (!editing('event-title')) setTitle(e.title);
+    if (!editing('event-desc')) setDesc(e.description);
+    if (!editing('event-labels')) setLabels(e.labels.join(', '));
   }, [e?.id, e?.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!e) return null;
@@ -66,7 +72,7 @@ export function BoardPanel() {
           onClick={() => s.setEventStatus(e.id, done ? 'active' : 'completed')}>
           {done ? <CheckCircle2 size={20} /> : <Circle size={20} />}
         </button>
-        <input className="title-input" value={title} disabled={readOnly} aria-label="事件包标题"
+        <input className="title-input" data-field="event-title" value={title} disabled={readOnly} aria-label="事件包标题"
           onChange={(x) => setTitle(x.target.value)}
           onBlur={() => (title.trim() && title !== e.title ? s.updateRow('events', e.id, { title: title.trim() }) : setTitle(e.title))}
           onKeyDown={(x) => x.key === 'Enter' && (x.target as HTMLInputElement).blur()} />
@@ -123,13 +129,13 @@ export function BoardPanel() {
       {showDetails && (
         <div className="event-details">
           <label className="block">简短描述
-            <textarea rows={2} value={desc} disabled={readOnly} placeholder="一句话说明这件事…"
+            <textarea rows={2} data-field="event-desc" value={desc} disabled={readOnly} placeholder="一句话说明这件事…"
               onChange={(x) => setDesc(x.target.value)}
               onBlur={() => desc !== e.description && s.updateRow('events', e.id, { description: desc })} />
           </label>
           <div className="field-grid">
             <label>标签（逗号分隔）
-              <input value={labels} disabled={readOnly} onChange={(x) => setLabels(x.target.value)}
+              <input data-field="event-labels" value={labels} disabled={readOnly} onChange={(x) => setLabels(x.target.value)}
                 onBlur={() => {
                   const next = labels.split(/[,，]/).map((v) => v.trim()).filter(Boolean);
                   if (next.join('|') !== e.labels.join('|')) s.updateRow('events', e.id, { labels: next });
