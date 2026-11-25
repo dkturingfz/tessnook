@@ -196,6 +196,16 @@ let authWatched = false;
 function watchNetwork() {
   if (networkWatched || typeof window === 'undefined') return;
   networkWatched = true;
+  // 关闭或刷新页面前：正在输入的内容先提交（输入框在失焦时保存，直接关闭页面不会失焦）；
+  // 仍有未完成的保存时，请浏览器提示“确定离开？”，避免修改丢失
+  window.addEventListener('beforeunload', (e) => {
+    const a = document.activeElement as HTMLElement | null;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.closest('.board-panel, .task-detail, .region-header, .list-col')) a.blur();
+    if (useStore.getState().pendingOps > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
   window.addEventListener('offline', () => useStore.setState({ online: false }));
   window.addEventListener('online', async () => {
     useStore.setState({ online: true });

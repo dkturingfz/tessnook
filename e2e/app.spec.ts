@@ -894,3 +894,19 @@ test('键盘打开卡片的操作菜单：Shift+F10 打开并聚焦第一项，�
   await expect.poll(async () => (await db(page)).events[0].status).toBe('completed');
   await expect(menu).toHaveCount(0);
 });
+
+test('关闭页面前：正在输入的内容会先保存，保存未完成时浏览器提示是否离开', async ({ page }) => {
+  await signUp(page, 'U', 'unload@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '写周报', 0.25, 0.3);
+  await card(page, '写周报').click();
+  await page.getByRole('button', { name: '详情' }).click();
+  const desc = page.locator('.event-details textarea');
+  await desc.click();
+  await desc.pressSequentially('还没离开输入框就关页面');
+  // 不离开输入框，直接关闭页面
+  const dialog = new Promise<string>((resolve) => page.once('dialog', async (d) => { resolve(d.type()); await d.dismiss(); }));
+  await page.close({ runBeforeUnload: true });
+  expect(await dialog).toBe('beforeunload'); // 用户选择留在页面
+  await expect.poll(async () => (await db(page)).events[0].description).toBe('还没离开输入框就关页面');
+});
