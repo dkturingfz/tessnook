@@ -1,9 +1,13 @@
-# Cloudflare Pages 响应头
+# Cloudflare（Workers 静态资源）响应头
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000
+  # 内容安全策略：只执行本站脚本；网络请求只允许本站与 Supabase（REST/认证走 https，实时走 wss）。
+  # 样式需要 'unsafe-inline'：画布库用内联样式定位节点。更换后端服务时，请同步修改 connect-src。
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 # 构建产物文件名带内容哈希，可长期缓存
 /assets/*

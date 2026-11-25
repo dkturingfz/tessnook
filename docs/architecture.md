@@ -53,6 +53,7 @@
    - 禁止跨工作空间引用；
    - 实时推送，以及可能漏消息时调用 `onResync`。
 3. 在 `src/data/index.ts` 的 `createRepo()` 中根据配置加载它。
+   同时把新后端的地址加入 `public/_headers` 里内容安全策略（CSP）的 `connect-src`，否则浏览器会拦截请求。
 4. 仿照 `tests/contract/supabase.contract.test.ts` 新建一个契约测试入口，直到全部通过。
 5. 数据迁移：所有实体都是普通的、带 `workspace_id` 和 `version` 的记录，可以通过 `loadSnapshot` 导出、再通过新后端导入。
 
