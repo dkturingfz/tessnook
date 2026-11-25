@@ -349,10 +349,19 @@ kbd {
 .context-menu button:hover:not(:disabled) { background: var(--surface-2); }
 .context-menu button.danger:hover:not(:disabled) { background: var(--danger-soft); }
 .react-flow__controls { box-shadow: var(--shadow); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-.react-flow__controls-button { background: var(--surface); border-bottom-color: var(--border); fill: var(--muted); width: 28px; height: 28px; }
-.react-flow__controls-button:hover { background: var(--surface-2); fill: var(--text); }
-.react-flow__minimap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
-.react-flow__selection { background: color-mix(in srgb, var(--primary) 8%, transparent); border-color: var(--primary); }
+/* React Flow 的样式在懒加载的分包里、晚于本文件生效，同等优先级的选择器会被它覆盖；
+   因此通过它自己的 CSS 变量来配色，与加载顺序无关（深色模式下也随主题变化）。 */
+.react-flow {
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-background-color-hover: var(--surface-2);
+  --xy-controls-button-color: var(--muted);
+  --xy-controls-button-color-hover: var(--text);
+  --xy-controls-button-border-color: var(--border);
+  --xy-minimap-background-color: var(--surface);
+}
+.react-flow .react-flow__controls-button { width: 28px; height: 28px; }
+.react-flow__minimap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.react-flow .react-flow__selection { background: color-mix(in srgb, var(--primary) 8%, transparent); border-color: var(--primary); }
 .react-flow__pane.draggable { cursor: default; }
 .react-flow__pane.dragging { cursor: grabbing; }
 

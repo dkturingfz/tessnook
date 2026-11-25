@@ -506,6 +506,12 @@ test('外观：可手动选择浅色或深色，刷新后保持；跟随系统�
   await expect(page.locator('.region')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await bg(page)).toBe(dark);
+  // 画布控件（缩放按钮）也跟随深色，而不是 React Flow 默认的白底
+  expect(await page.locator('.react-flow__controls-button').first().evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgb(254, 254, 254)');
+  // 小地图同理
+  await page.getByRole('button', { name: /小地图/ }).first().click();
+  expect(await page.locator('.react-flow__minimap').evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgb(255, 255, 255)');
+  await page.getByRole('button', { name: /小地图/ }).first().click();
   // 跟随系统
   await page.getByRole('button', { name: /账户菜单/ }).click();
   await page.getByRole('radio', { name: '跟随系统' }).click();

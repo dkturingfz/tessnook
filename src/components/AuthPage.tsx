@@ -62,9 +62,9 @@ export function AuthPage() {
           <button type="button" className={mode === 'in' ? 'on' : ''} onClick={() => setMode('in')}>登录</button>
           <button type="button" className={mode === 'up' ? 'on' : ''} onClick={() => setMode('up')}>注册</button>
         </div>
-        {mode === 'up' && <input placeholder="显示名称" value={name} onChange={(e) => setName(e.target.value)} />}
-        <input type="email" required placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-        <input type="password" required minLength={6} placeholder="密码（至少 6 位）" value={password}
+        {mode === 'up' && <input aria-label="显示名称" placeholder="显示名称" value={name} onChange={(e) => setName(e.target.value)} />}
+        <input type="email" required aria-label="邮箱" placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+        <input type="password" required minLength={6} aria-label="密码" placeholder="密码（至少 6 位）" value={password}
           onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} />
         {err && <div className="error">{err}</div>}
         <button className="primary block" disabled={busy}>{mode === 'in' ? '登录' : '注册并登录'}</button>

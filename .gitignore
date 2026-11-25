@@ -6,3 +6,4 @@ test-results
 playwright-report
 .wrangler
 dist-e2e
+*.tsbuildinfo
