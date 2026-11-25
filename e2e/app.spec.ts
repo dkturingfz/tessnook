@@ -475,6 +475,8 @@ test('看板拖拽：列表内排序、拖入空列表、拖动手柄调整列�
 
   // 键盘拖动：以读屏播报（中文）作为每一步完成的信号，而不是固定等待时间（负载高时不稳定）
   const live = page.locator('[id^="DndLiveRegion"]');
+  // 上一次鼠标拖动后列表还在做归位动画；动画中测量到的位置是错位的，等全部动画结束再开始
+  await page.waitForFunction(() => document.getAnimations().length === 0);
   await lists.nth(0).locator('.grip').focus();
   await page.keyboard.press('Space');
   await expect(live).toHaveText(/^(已拿起列表「已完成」|列表「已完成」移到列表「已完成」的位置)$/);
