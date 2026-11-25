@@ -187,7 +187,7 @@ button.avatar:hover { filter: brightness(1.08); }
 .quadrant-label {
   position: absolute; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); user-select: none;
   padding: 3px 9px 3px 7px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 82%, transparent);
-  border: 1px solid var(--border); backdrop-filter: blur(2px);
+  border: 1px solid var(--border);
 }
 .quadrant-Q2 .quadrant-label { top: 10px; left: 10px; }
 .quadrant-Q1 .quadrant-label { top: 10px; right: 10px; }
@@ -218,6 +218,10 @@ button.avatar:hover { filter: brightness(1.08); }
   transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
 }
 .event-card.density-standard { height: 104px; }
+/* 性能：卡片内部变化不影响外部布局与绘制；被拖动的节点提升为独立合成层 */
+.event-card, .task-card { contain: layout paint style; }
+/* 卡片堆的展开菜单绘制在自身边界之外，不能做绘制隔离 */
+.react-flow__node.dragging { will-change: transform; }
 .event-card.density-compact { height: 44px; justify-content: center; }
 .event-card:hover { box-shadow: var(--shadow-hover); border-color: var(--border-strong); border-left-color: var(--accent); }
 .event-card.is-selected { box-shadow: 0 0 0 2px var(--primary), var(--shadow-hover); }

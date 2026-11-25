@@ -61,6 +61,7 @@ npm run build && npx wrangler dev
 | `PGURL=postgres://… npm run test:db` | 在真实 PostgreSQL 15+ 上执行全部迁移，并测试 RLS 隔离、角色权限、RPC 事务和版本冲突 |
 | `npm run verify:supabase` | 针对真实 Supabase 项目的数据库层安全检查（见上文），`--skip-realtime` 可跳过 WebSocket 检查 |
 | `npm run typecheck` | 应用代码与测试代码的类型检查 |
+| `node scripts/bench-canvas.cjs 500` | 画布性能基准（需先 `npm run dev`）：500 个事件包时帧时间 P95 约 16.8ms（60 帧） |
 
 ## 架构
 

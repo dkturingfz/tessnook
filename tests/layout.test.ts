@@ -97,3 +97,24 @@ describe('区域缩放时条目等比例移动', () => {
     expect(scaleWithRegion(p, from, { ...from, x: 40, y: -20 })).toEqual({ x: 340, y: 280 });
   });
 });
+
+import { mergeNodes, sameValue } from '../src/canvas/adapter';
+
+describe('画布节点复用（性能）', () => {
+  const node = (id: string, data: any, x = 0) => ({ id, type: 'event', position: { x, y: 0 }, data } as any);
+  it('内容相同的新对象视为未变化', () => {
+    expect(sameValue({ a: 1, p: { done: 1, total: 2 } }, { a: 1, p: { done: 1, total: 2 } })).toBe(true);
+    expect(sameValue({ a: 1, p: { done: 1, total: 2 } }, { a: 1, p: { done: 2, total: 2 } })).toBe(false);
+  });
+  it('没有任何变化时返回原数组；只有变化的节点换成新对象', () => {
+    const prev = [node('a', { t: 1 }), node('b', { t: 2 })];
+    expect(mergeNodes(prev, [node('a', { t: 1 }), node('b', { t: 2 })], new Set())).toBe(prev);
+    const next = mergeNodes(prev, [node('a', { t: 1 }), node('b', { t: 3 })], new Set());
+    expect(next[0]).toBe(prev[0]);
+    expect(next[1]).not.toBe(prev[1]);
+  });
+  it('正在拖动的节点保留本地位置', () => {
+    const prev = [{ ...node('a', { t: 1 }, 50), dragging: true }];
+    expect(mergeNodes(prev, [node('a', { t: 1 }, 0)], new Set())[0].position.x).toBe(50);
+  });
+});

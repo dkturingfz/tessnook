@@ -283,6 +283,8 @@ export function Canvas() {
         minZoom={0.1}
         maxZoom={2.5}
         nodeDragThreshold={4}
+        // 不要开启 onlyRenderVisibleElements：其他成员恢复的事件包重新出现时，可能因尚未测量尺寸而一直不被渲染
+        // （端到端协作测试约一半失败）。性能主要靠节点复用与绘制隔离，见 adapter.mergeNodes 与 styles.css。
         elevateNodesOnSelect={false}
         deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}

@@ -126,21 +126,41 @@ export function buildNodes(i: BuildInput): AppNode[] {
   return out;
 }
 
+/** 有限深度的结构比较：用于判断节点数据是否真的变化（新建的对象但内容相同视为未变） */
+export function sameValue(a: unknown, b: unknown, depth = 3): boolean {
+  if (a === b) return true;
+  if (depth === 0 || typeof a !== 'object' || typeof b !== 'object' || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (a instanceof Map || b instanceof Map) return false;
+  const ka = Object.keys(a as object), kb = Object.keys(b as object);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if (!sameValue((a as any)[k], (b as any)[k], depth - 1)) return false;
+  return true;
+}
+
 /**
  * 把新构建的节点与 React Flow 当前节点合并：
- * 保留选择状态；正在拖拽/缩放的节点保留其本地位置，避免远端更新打断操作。
+ * - 保留选择状态；正在拖拽/缩放的节点保留其本地位置，避免远端更新打断操作；
+ * - 内容没有变化的节点直接复用原对象，React Flow 与 React 会跳过它们的重新渲染。
+ *   这让单个节点的变化（拖动高亮、打开看板、单张卡片更新）不再导致全部节点重绘。
  */
 export function mergeNodes(prev: AppNode[], next: AppNode[], busy: Set<ID>): AppNode[] {
   const old = new Map(prev.map((n) => [n.id, n]));
-  return next.map((n) => {
+  let changed = prev.length !== next.length;
+  const out = next.map((n, i) => {
     const p = old.get(n.id);
-    if (!p) return n;
+    if (!p) { changed = true; return n; }
     const keep = busy.has(n.id) || p.dragging;
-    return {
-      ...n,
-      selected: p.selected,
-      ...(keep ? { position: p.position, width: p.width, height: p.height } : {}),
-      measured: p.measured,
-    } as AppNode;
+    const position = keep ? p.position : n.position;
+    const width = keep ? p.width : n.width;
+    const height = keep ? p.height : n.height;
+    const data = sameValue(p.data, n.data) ? p.data : n.data;
+    if (
+      data === p.data && p.position.x === position.x && p.position.y === position.y && p.width === width && p.height === height &&
+      p.type === n.type && p.zIndex === n.zIndex && p.draggable === n.draggable && p.selectable === n.selectable && prev[i] === p
+    ) return p;
+    changed = true;
+    return { ...n, data, position, width, height, selected: p.selected, measured: p.measured } as AppNode;
   });
+  return changed ? out : prev;
 }
