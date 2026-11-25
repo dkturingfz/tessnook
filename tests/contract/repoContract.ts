@@ -154,6 +154,16 @@ export function defineRepoContract(h: ContractHarness) {
         expect(find(after, e.id)).toMatchObject({ ...target, quadrant: 'Q2' });
       }, T);
 
+      it('调整区域尺寸时条目可移出区域（撤销缩放时把新纳入的条目还原为自由条目）', async () => {
+        const { ws, region, snap } = await workspace();
+        const r = snap.regions[0];
+        const e = await event(ws, region, 'A', r.x + 100, r.y + 100, 'Q2');
+        await alice.repo.resizeRegion(region, { x: r.x, y: r.y, width: r.width - 100, height: r.height }, r.version, [
+          { kind: 'event', id: e.id, x: r.x - 400, y: r.y, region_id: null, quadrant: null, version: e.version },
+        ]);
+        expect(find(await alice.repo.loadSnapshot(ws), e.id)).toMatchObject({ x: r.x - 400, y: r.y, region_id: null, quadrant: null });
+      }, T);
+
       it('调整区域尺寸时任一条目版本过期，则整体不生效', async () => {
         const { ws, region, snap } = await workspace();
         const e = await event(ws, region, 'A', 100, 100, 'Q2');
