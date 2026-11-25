@@ -34,7 +34,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "typescript": "5.7",
     "vite": "^6.4.6",
-    "vitest": "^3.2.7",
+    "vitest": "^5.1.1",
     "wrangler": "^4.167.0"
   },
   "license": "PolyForm-Noncommercial-1.0.0",
