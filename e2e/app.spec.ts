@@ -307,6 +307,10 @@ test('无障碍：主要界面没有 WCAG A/AA 违规（浅色与深色）；任
     await check();
     await page.getByRole('button', { name: '创建' }).click();
     await createAt(page, '写周报', 0.25, 0.3);
+    // 画布库的读屏文字与控件名称为中文（默认是英文）
+    for (const name of ['放大', '缩小', '适配全部内容']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+    const describedBy = await page.locator('.react-flow__node-event').first().getAttribute('aria-describedby');
+    await expect(page.locator(`[id="${describedBy}"]`)).toContainText('方向键移动');
     await card(page, '写周报').click();
     await page.getByTestId('list-col').nth(0).locator('input.add-task').fill('查文献');
     await page.getByTestId('list-col').nth(0).locator('input.add-task').press('Enter');

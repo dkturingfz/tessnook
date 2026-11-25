@@ -31,6 +31,21 @@ import { ShortcutsHelp } from './ShortcutsHelp';
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 const KEY_STEP = 16;
 
+/** 画布库内置的读屏与控件文字（默认英文），按本应用的实际操作改写为中文 */
+const NODE_HELP = '按回车或空格选中；选中后用方向键移动（按住 Shift 移动更多），移到另一个象限会改变优先级；按 Esc 取消选择。';
+const ARIA_LABELS = {
+  'node.a11yDescription.default': NODE_HELP,
+  'node.a11yDescription.keyboardDisabled': NODE_HELP,
+  'node.a11yDescription.ariaLiveMessage': ({ direction }: { direction: string; x: number; y: number }) =>
+    `已向${({ up: '上', down: '下', left: '左', right: '右' } as Record<string, string>)[direction] ?? ''}移动`,
+  'controls.ariaLabel': '画布缩放控制',
+  'controls.zoomIn.ariaLabel': '放大',
+  'controls.zoomOut.ariaLabel': '缩小',
+  'controls.fitView.ariaLabel': '适配全部内容',
+  'controls.interactive.ariaLabel': '锁定画布',
+  'minimap.ariaLabel': '小地图',
+};
+
 const nodeTypes: NodeTypes = { region: RegionNode, event: EventNode, stack: StackNode, draft: DraftNode } as any;
 
 type Menu =
@@ -358,6 +373,7 @@ export function Canvas() {
         elevateNodesOnSelect={false}
         deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}
+        ariaLabelConfig={ARIA_LABELS}
       >
         {view.grid && <Background variant={BackgroundVariant.Lines} gap={32} color="var(--grid)" />}
         <Controls showInteractive={false} position="bottom-left" />
