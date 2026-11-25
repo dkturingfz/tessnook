@@ -20,7 +20,7 @@ import {
   type Workspace,
   type WorkspaceWithRole,
 } from '../domain/types';
-import { positionBetween } from '../domain/layout';
+import { nearestFreeSpot, positionBetween, quadrantRect } from '../domain/layout';
 import { can, validateStack, type Action } from '../domain/rules';
 import { backupFileName, validateBackup, type Backup } from '../domain/backup';
 import { exportBackup, importBackup } from './backup';
@@ -737,6 +737,20 @@ export const useStore = create<AppState>((set, get) => {
       const cs = await mutate('恢复', () => backend().restoreEvent(id), 'archive');
       if (cs) {
         get().apply(cs);
+        // 原位置在归档期间可能已被别的卡片占用：在同一象限内就近挪到空位
+        const s = get();
+        const e = s.events[id];
+        const region = e?.region_id ? s.regions[e.region_id] : null;
+        if (e && region && e.quadrant && !e.stack_id && can(s.role, 'edit')) {
+          const occupied = [
+            ...Object.values(s.events).filter((o) => o.id !== id && o.region_id === region.id && o.quadrant === e.quadrant && !o.archived_at && !o.stack_id),
+            ...Object.values(s.stacks).filter((o) => o.region_id === region.id && o.quadrant === e.quadrant),
+          ];
+          const p = nearestFreeSpot(e, occupied, quadrantRect(region, e.quadrant));
+          if (p.x !== e.x || p.y !== e.y) {
+            await get().moveItems([{ kind: 'event', id, x: p.x, y: p.y, region_id: region.id, quadrant: e.quadrant, version: e.version }]);
+          }
+        }
         get().focusEvent(id);
         get().toast('已恢复到画布', 'success');
       }

@@ -107,6 +107,20 @@ describe('store', () => {
     expect(S().events[id]).toMatchObject({ x: before.x, y: before.y });
   });
 
+  it('恢复归档时原位置已被占用：就近挪到同一象限的空位', async () => {
+    const r = S().regions[region];
+    const x = r.x + 60, y = r.y + 80; // 左上象限（Q2）内
+    const a = (await S().createEvent('归档的', x, y, region, 'Q2'))!;
+    await S().archiveEvent(a, false);
+    const b = (await S().createEvent('后来的', x, y, region, 'Q2'))!;
+    await S().restoreEvent(a);
+    const [ea, eb] = [S().events[a], S().events[b]];
+    expect(ea.archived_at).toBeNull();
+    expect(ea.quadrant).toBe('Q2');
+    expect(Math.abs(ea.x - eb.x) >= 220 || Math.abs(ea.y - eb.y) >= 104).toBe(true);
+    expect([eb.x, eb.y]).toEqual([x, y]); // 不动别人的卡片
+  });
+
   it('撤销调整区域尺寸：区域尺寸与区域内条目位置一起恢复，且撤销本身不再进入历史', async () => {
     const id = await newEvent('H');
     const r0 = { ...S().regions[region] };
