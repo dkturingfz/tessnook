@@ -106,4 +106,20 @@ describe('store', () => {
     await S().undoLayout();
     expect(S().events[id]).toMatchObject({ x: before.x, y: before.y });
   });
+
+  it('撤销调整区域尺寸：区域尺寸与区域内条目位置一起恢复，且撤销本身不再进入历史', async () => {
+    const id = await newEvent('H');
+    const r0 = { ...S().regions[region] };
+    const e0 = S().events[id];
+    const historyBefore = S().layoutHistory.length;
+    const rect = { x: r0.x, y: r0.y, width: r0.width - 200, height: r0.height - 100 };
+    await S().resizeRegion(region, rect, [{ kind: 'event', id, x: e0.x - 50, y: e0.y - 20, region_id: region, quadrant: e0.quadrant, version: e0.version }]);
+    expect(S().regions[region]).toMatchObject(rect);
+    expect(S().layoutHistory).toHaveLength(historyBefore + 1);
+    await S().undoLayout();
+    expect(S().regions[region]).toMatchObject({ x: r0.x, y: r0.y, width: r0.width, height: r0.height });
+    expect(S().events[id]).toMatchObject({ x: e0.x, y: e0.y, quadrant: e0.quadrant });
+    expect(S().layoutHistory).toHaveLength(historyBefore);
+    expect(lastToast()).toContain('调整区域尺寸');
+  });
 });

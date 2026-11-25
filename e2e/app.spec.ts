@@ -167,6 +167,14 @@ test('调整区域尺寸时，区域内事件包等比例移动且象限不变',
     expect(Math.abs(a[0] - b[0])).toBeLessThan(0.01);
     expect(Math.abs(a[1] - b[1])).toBeLessThan(0.01);
   }
+  // 可撤销：区域尺寸与卡片位置一起恢复
+  await page.getByRole('button', { name: '撤销调整区域尺寸' }).click();
+  await expect.poll(async () => (await db(page)).regions[0].width).toBe(before.regions[0].width);
+  const undone = await db(page);
+  for (const e of undone.events) {
+    const o = before.events.find((x: any) => x.id === e.id);
+    expect([e.x, e.y]).toEqual([o.x, o.y]);
+  }
 });
 
 const day = (n: number) => {

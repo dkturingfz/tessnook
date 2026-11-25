@@ -43,6 +43,8 @@ export interface Toast {
 interface LayoutSnapshot {
   label: string;
   items: { kind: 'event' | 'stack'; id: ID; x: number; y: number; region_id: ID | null; quadrant: Quadrant | null }[];
+  /** 调整区域尺寸时记录原尺寸，撤销时与条目位置在同一事务中恢复 */
+  region?: { id: ID; x: number; y: number; width: number; height: number };
 }
 
 interface Data {
@@ -166,7 +168,8 @@ export interface AppState extends Data {
   createEvent(title: string, x: number, y: number, region_id: ID | null, quadrant: Quadrant | null): Promise<ID | null>;
   moveItems(moves: ItemMove[], historyLabel?: string): Promise<void>;
   moveRegion(id: ID, x: number, y: number, version: number): Promise<void>;
-  resizeRegion(id: ID, rect: RegionRect, moves: ItemMove[]): Promise<void>;
+  /** historyLabel 为 null 时不记入撤销历史（撤销操作本身使用） */
+  resizeRegion(id: ID, rect: RegionRect, moves: ItemMove[], historyLabel?: string | null): Promise<void>;
   deleteRegion(id: ID): Promise<void>;
   createRegion(x: number, y: number): Promise<void>;
   createStack(eventIds: ID[]): Promise<void>;
@@ -667,11 +670,13 @@ export const useStore = create<AppState>((set, get) => {
       if (cs) get().apply(cs);
     },
 
-    async resizeRegion(id, rect, moves) {
+    async resizeRegion(id, rect, moves, historyLabel = '调整区域尺寸') {
       if (!guard('edit')) return;
       const r = get().regions[id];
       if (!r) return;
       const version = r.version;
+      const snap = snapshotLayout(historyLabel ?? '', moves.map((m) => ({ kind: m.kind, id: m.id })));
+      snap.region = { id, x: r.x, y: r.y, width: r.width, height: r.height };
       patchLocal('regions', id, rect);
       for (const m of moves) {
         patchLocal(m.kind === 'event' ? 'events' : 'stacks', m.id, {
@@ -679,7 +684,10 @@ export const useStore = create<AppState>((set, get) => {
         });
       }
       const cs = await mutate('调整区域', () => backend().resizeRegion(id, rect, version, moves));
-      if (cs) get().apply(cs);
+      if (cs) {
+        get().apply(cs);
+        if (historyLabel) set((s) => ({ layoutHistory: [...s.layoutHistory.slice(-19), snap] }));
+      }
     },
 
     async deleteRegion(id) {
@@ -748,7 +756,12 @@ export const useStore = create<AppState>((set, get) => {
           return { ...it, region_id: regionOk ? it.region_id : null, version: cur.version } as ItemMove;
         })
         .filter((m): m is ItemMove => !!m);
-      await get().moveItems(moves);
+      if (last.region) {
+        const { id, ...rect } = last.region;
+        if (s.regions[id]) await get().resizeRegion(id, rect, moves, null);
+      } else {
+        await get().moveItems(moves);
+      }
       get().toast(`已撤销：${last.label}`);
     },
 

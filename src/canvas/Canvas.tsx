@@ -255,7 +255,7 @@ export function Canvas() {
     setMenu({ kind: 'pane', x: e.clientX, y: e.clientY, flow: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
   }, [rf]);
 
-  // Ctrl/Cmd+Z 撤销最近一次整理/移动（输入框中不拦截）
+  // Ctrl/Cmd+Z 撤销最近一次整理/移动/区域缩放（输入框中不拦截）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -350,7 +350,7 @@ export function Canvas() {
         <button className={view.minimap ? 'on' : ''} title="小地图" aria-label="小地图" onClick={() => setView((v: any) => ({ ...v, minimap: !v.minimap }))}><MapIcon size={16} /></button>
         <button className="only-fine" title="快捷键与操作说明（?）" aria-label="快捷键与操作说明" onClick={() => setHelp(true)}><Keyboard size={16} /></button>
         {editable && layoutHistory.length > 0 && (
-          <button title="撤销最近一次整理 (Ctrl+Z)" onClick={() => actions.undoLayout()}><Undo2 size={16} />撤销整理</button>
+          <button title={`撤销「${layoutHistory[layoutHistory.length - 1].label}」(Ctrl+Z)`} aria-label={`撤销${layoutHistory[layoutHistory.length - 1].label}`} onClick={() => actions.undoLayout()}><Undo2 size={16} />撤销</button>
         )}
       </div>
 
