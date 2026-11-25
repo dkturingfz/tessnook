@@ -76,7 +76,7 @@ export const canvasActions = {
     if (!target || !region) return;
     const p = escalatePosition(e, region);
     await s.moveItems([{ kind: 'event', id: e.id, x: p.x, y: p.y, region_id: region.id, quadrant: target, version: e.version }], '按截止日期调整');
-    s.toast(`已移至「${quadrantName(region, target)}」，可按 Ctrl+Z 撤销`, 'success');
+    s.toast(`已移至「${quadrantName(region, target)}」`, 'success', { label: '撤销', run: () => useStore.getState().undoLayout() });
   },
 
   arrangeSelection(refs: ItemRef[]) {

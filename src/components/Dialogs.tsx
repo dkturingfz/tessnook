@@ -163,13 +163,22 @@ export function ActivityDialog({ onClose }: { onClose(): void }) {
   useEffect(() => {
     useStore.getState().listActivity(100).then(setItems).catch(() => setItems([]));
   }, [wsId, revision]);
+  // 只有仍在画布上的事件包可以定位（已归档的在归档中心查看）
+  const canLocate = (a: Activity) => a.entity_type === 'event' && !!revision[a.entity_id] && !revision[a.entity_id].archived_at;
+  const locate = (a: Activity) => {
+    const s = useStore.getState();
+    s.focusEvent(a.entity_id);
+    s.openEvent(a.entity_id);
+    onClose();
+  };
   return (
     <Modal title="活动记录" onClose={onClose}>
       {!items && <p className="muted">加载中…</p>}
       {items?.length === 0 && <p className="muted">暂无记录</p>}
       <div className="activity">
         {items?.map((a) => (
-          <div key={a.id} className="activity-row">
+          <div key={a.id} className={`activity-row ${canLocate(a) ? 'clickable' : ''}`}
+            {...(canLocate(a) ? { role: 'button', tabIndex: 0, title: '定位到该事件包', onClick: () => locate(a), onKeyDown: (e: React.KeyboardEvent) => e.key === 'Enter' && locate(a) } : {})}>
             <Avatar id={a.actor_id ?? '?'} name={members.find((m) => m.user_id === a.actor_id)?.display_name ?? '?'} size="xs" />
             <span className="grow">
               <strong>{members.find((m) => m.user_id === a.actor_id)?.display_name ?? '成员'}</strong> {a.summary}

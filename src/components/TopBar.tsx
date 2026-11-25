@@ -117,6 +117,7 @@ function SearchBox() {
   const regions = useStore((s) => s.regions);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
@@ -134,24 +135,36 @@ function SearchBox() {
     return [...evs, ...ts];
   }, [q, events, tasks, regions]);
 
+  const choose = (r: { eventId: string }) => {
+    const s = useStore.getState();
+    s.focusEvent(r.eventId);
+    s.openEvent(r.eventId);
+    setQ('');
+    inputRef.current?.blur();
+  };
+
   return (
     <div className="search menu-anchor">
       <Search size={15} />
       <input ref={inputRef} placeholder="搜索事件包与任务" aria-label="搜索事件包与任务" value={q} data-testid="search"
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        role="combobox" aria-expanded={open && !!q} aria-controls="search-results"
+        aria-activedescendant={open && results[active] ? `search-opt-${active}` : undefined}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => e.key === 'Escape' && inputRef.current?.blur()} />
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') return inputRef.current?.blur();
+          if (!results.length) return;
+          if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => (i + 1) % results.length); }
+          if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => (i - 1 + results.length) % results.length); }
+          if (e.key === 'Enter') { e.preventDefault(); choose(results[Math.min(active, results.length - 1)]); }
+        }} />
       {open && q && (
-        <div className="dropdown search-results">
+        <div className="dropdown search-results" id="search-results" role="listbox" aria-label="搜索结果">
           {results.length === 0 && <div className="menu-note muted">没有匹配的活动内容（已归档内容请在归档中心搜索）</div>}
-          {results.map((r) => (
-            <button key={r.key} onMouseDown={() => {
-              const s = useStore.getState();
-              s.focusEvent(r.eventId);
-              s.openEvent(r.eventId);
-              setQ('');
-            }}>
+          {results.map((r, i) => (
+            <button key={r.key} id={`search-opt-${i}`} role="option" aria-selected={i === active} className={i === active ? 'on' : ''}
+              onMouseEnter={() => setActive(i)} onMouseDown={() => choose(r)}>
               <span>{r.title}</span><span className="muted">{r.sub}</span>
             </button>
           ))}

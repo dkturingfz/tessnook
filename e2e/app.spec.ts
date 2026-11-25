@@ -339,3 +339,32 @@ test('新手引导与快捷键：开始提示、N 新建、? 说明、/ 搜索�
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('board-panel')).toHaveCount(0);
 });
+
+test('效率细节：归档提示可撤销；搜索可用方向键与回车；活动记录可定位', async ({ page }) => {
+  await signUp(page, 'E', 'eff@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '论文初稿', 0.25, 0.3);
+  await createAt(page, '论文返修', 0.75, 0.75);
+
+  // 归档后点提示里的“撤销”，卡片回到画布
+  await card(page, '论文初稿').click({ button: 'right' });
+  await page.locator('.context-menu').getByText('归档', { exact: true }).click();
+  await expect(card(page, '论文初稿')).toHaveCount(0);
+  await page.locator('.toast', { hasText: '已归档' }).getByRole('button', { name: '撤销' }).click();
+  await expect(card(page, '论文初稿')).toBeVisible();
+
+  // 搜索：方向键选择第二个结果，回车打开
+  await page.getByTestId('search').fill('论文');
+  await expect(page.getByRole('option')).toHaveCount(2);
+  const second = await page.getByRole('option').nth(1).locator('span').first().innerText();
+  await page.getByTestId('search').press('ArrowDown');
+  await expect(page.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('search').press('Enter');
+  await expect(page.getByTestId('board-panel').getByRole('textbox', { name: '事件包标题' })).toHaveValue(second);
+  await page.getByRole('button', { name: '关闭看板' }).click();
+
+  // 活动记录：点击“创建事件包「论文返修」”定位并打开看板
+  await page.getByTitle('活动记录').click();
+  await page.locator('.activity-row.clickable', { hasText: '论文返修' }).first().click();
+  await expect(page.getByTestId('board-panel').getByRole('textbox', { name: '事件包标题' })).toHaveValue('论文返修');
+});

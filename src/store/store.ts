@@ -36,6 +36,8 @@ export interface Toast {
   id: number;
   kind: 'info' | 'error' | 'success';
   text: string;
+  /** 可选的操作按钮，例如“撤销” */
+  action?: { label: string; run(): void };
 }
 
 interface LayoutSnapshot {
@@ -140,7 +142,7 @@ export interface AppState extends Data {
   setLeadDays(d: LeadDays): void;
   snoozeAlert(key: string): void;
   focusEvent(id: ID): void;
-  toast(text: string, kind?: Toast['kind']): void;
+  toast(text: string, kind?: Toast['kind'], action?: Toast['action']): void;
   dismissToast(id: number): void;
 
   // 数据变更
@@ -547,10 +549,11 @@ export const useStore = create<AppState>((set, get) => {
     focusEvent(id) {
       set({ focusRequest: { id, at: Date.now() } });
     },
-    toast(text, kind = 'info') {
+    toast(text, kind = 'info', action) {
       const id = toastSeq++;
-      set((s) => ({ toasts: [...s.toasts, { id, kind, text }] }));
-      setTimeout(() => get().dismissToast(id), kind === 'error' ? 6000 : 3000);
+      set((s) => ({ toasts: [...s.toasts, { id, kind, text, action }] }));
+      // 带操作的提示多停留一会儿，留出点击时间
+      setTimeout(() => get().dismissToast(id), kind === 'error' ? 6000 : action ? 6000 : 3000);
     },
     dismissToast(id) {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
@@ -688,7 +691,7 @@ export const useStore = create<AppState>((set, get) => {
       if (cs) {
         get().apply(cs);
         if (get().openEventId === id) get().openEvent(null);
-        get().toast(`已归档「${e.title}」，可在归档中心恢复`, 'success');
+        get().toast(`已归档「${e.title}」`, 'success', { label: '撤销', run: () => get().restoreEvent(id) });
       }
     },
 
