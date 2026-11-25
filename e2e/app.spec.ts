@@ -368,3 +368,31 @@ test('效率细节：归档提示可撤销；搜索可用方向键与回车；�
   await page.locator('.activity-row.clickable', { hasText: '论文返修' }).first().click();
   await expect(page.getByTestId('board-panel').getByRole('textbox', { name: '事件包标题' })).toHaveValue('论文返修');
 });
+
+test('错误兜底：看板代码加载失败时只影响看板；工作区加载失败时提示刷新而不是白屏', async ({ page, context }) => {
+  // 模拟“页面打开期间发布了新版本，旧的按需加载文件已不存在”
+  await page.route(/\/src\/board\/BoardPanel\.tsx/, (r) => r.abort());
+  await signUp(page, 'R', 'err@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '卡片', 0.25, 0.3);
+  await card(page, '卡片').click();
+  await expect(page.getByTestId('panel-error')).toContainText('网站已更新');
+  await expect(page.getByTestId('panel-error').getByRole('button', { name: '刷新页面' })).toBeVisible();
+  // 画布不受影响：仍可新建
+  await page.getByTestId('panel-error').getByRole('button', { name: '关闭看板' }).click();
+  await expect(page.getByTestId('panel-error')).toHaveCount(0);
+  await createAt(page, '仍可新建', 0.75, 0.75);
+
+  // 整个工作区代码取不到：显示整页提示
+  const p2 = await context.newPage();
+  await p2.route(/\/src\/WorkspaceView\.tsx/, (r) => r.abort());
+  await p2.goto('/');
+  await p2.getByRole('button', { name: '注册', exact: true }).click();
+  await p2.fill('input[placeholder="显示名称"]', 'R2');
+  await p2.fill('input[type=email]', 'err2@x.com');
+  await p2.fill('input[type=password]', 'secret1');
+  await p2.getByRole('button', { name: '注册并登录' }).click();
+  await p2.getByRole('button', { name: '创建' }).click();
+  await expect(p2.getByTestId('crash-screen')).toContainText('Tessnook 已更新');
+  await expect(p2.getByRole('button', { name: '重新加载' })).toBeVisible();
+});

@@ -212,20 +212,26 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 
 export const useStore = create<AppState>((set, get) => {
   /** 统一的写操作包装：乐观更新失败时提示并以服务端数据校准 */
-  async function mutate<T>(label: string, fn: () => Promise<T>, action: Action = 'edit'): Promise<T | null> {
+  /** 能否写入：网络可用且有权限。先在本地显示修改的操作必须在修改之前调用，避免残留未保存的本地修改 */
+  function guard(action: Action = 'edit'): boolean {
     if (!get().online) {
       get().toast('网络已断开，暂时无法保存；恢复连接后再试', 'error');
-      return null;
+      return false;
     }
     if (!can(get().role, action)) {
       get().toast(get().role === 'viewer' ? '当前为只读（Viewer）身份' : '没有执行该操作的权限', 'error');
-      return null;
+      return false;
     }
+    return true;
+  }
+
+  async function mutate<T>(label: string, fn: () => Promise<T>, action: Action = 'edit'): Promise<T | null> {
+    if (!guard(action)) return null;
     set((s) => ({ pendingOps: s.pendingOps + 1 }));
     try {
       return await enqueue(fn);
     } catch (e) {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         // 请求途中断网：只提示一次，恢复后会自动同步
         set({ online: false });
         get().toast(`${label}未保存：网络已断开`, 'error');
@@ -300,7 +306,8 @@ export const useStore = create<AppState>((set, get) => {
   return {
     ...emptyData(),
     backend: null,
-    online: typeof navigator === 'undefined' ? true : navigator.onLine,
+    // 只有明确为 false 才视为断网（某些环境中 navigator.onLine 不存在）
+    online: typeof navigator === 'undefined' || navigator.onLine !== false,
     realtime: 'connected',
     busy: null,
     user: null,
@@ -581,6 +588,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async updateRow(table, id, patch) {
+      if (!guard('edit')) return;
       const cur = (get()[table] as Rows<any>)[id];
       if (!cur) return;
       patchLocal(table, id, patch);
@@ -619,6 +627,7 @@ export const useStore = create<AppState>((set, get) => {
 
     async moveItems(moves, historyLabel) {
       if (!moves.length) return;
+      if (!guard('edit')) return;
       const ws = get().workspace!;
       if (historyLabel) {
         const snap = snapshotLayout(historyLabel, moves.map((m) => ({ kind: m.kind, id: m.id })));
@@ -634,12 +643,14 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async moveRegion(id, x, y, version) {
+      if (!guard('edit')) return;
       patchLocal('regions', id, { x, y });
       const cs = await mutate('移动区域', () => backend().moveRegion(id, x, y, version));
       if (cs) get().apply(cs);
     },
 
     async resizeRegion(id, rect, moves) {
+      if (!guard('edit')) return;
       const r = get().regions[id];
       if (!r) return;
       const version = r.version;
@@ -684,6 +695,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async archiveEvent(id, complete) {
+      if (!guard('archive')) return;
       const e = get().events[id];
       if (!e) return;
       patchLocal('events', id, { archived_at: new Date().toISOString() });
@@ -749,6 +761,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async moveTask(taskId, listId, position) {
+      if (!guard('edit')) return;
       const t = get().tasks[taskId];
       if (!t) return;
       patchLocal('tasks', taskId, { list_id: listId, position });

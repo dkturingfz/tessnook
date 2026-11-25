@@ -1,0 +1,109 @@
+// 状态层（store）单元测试：乐观更新、写入串行化、按版本合并、冲突回退、断网/无权限时不产生“未保存的本地修改”。
+// 使用浏览器内后端（LocalRepo），不依赖网络。
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LocalRepo, type SessionStore } from '../src/data/local/localRepo';
+import { configureBackend, useStore } from '../src/store/store';
+
+class Mem implements SessionStore {
+  private m = new Map<string, string>();
+  getItem(k: string) { return this.m.get(k) ?? null; }
+  setItem(k: string, v: string) { this.m.set(k, v); }
+  removeItem(k: string) { this.m.delete(k); }
+}
+
+const repo = new LocalRepo({ session: new Mem() });
+const other = new LocalRepo({ session: new Mem() }); // 同一账户的另一个会话，模拟“别人”的并发修改
+const S = () => useStore.getState();
+let region: string;
+
+async function newEvent(title: string) {
+  const id = await S().createEvent(title, 100, 100, region, 'Q2');
+  expect(id).toBeTruthy();
+  return id!;
+}
+const lastToast = () => S().toasts[S().toasts.length - 1]?.text ?? '';
+
+beforeAll(async () => {
+  configureBackend(repo);
+  await S().signUp('store@x.com', 'secret1', 'S');
+  await S().createWorkspace('W');
+  region = Object.keys(S().regions)[0];
+  await other.signIn('store@x.com', 'secret1');
+});
+afterAll(async () => {
+  await S().signOut();
+  repo.dispose();
+  other.dispose();
+});
+
+describe('store', () => {
+  it('同一客户端的连续修改按顺序提交，不会与自己冲突', async () => {
+    const id = await newEvent('A');
+    const v0 = S().events[id].version;
+    await Promise.all([S().updateRow('events', id, { title: 'A1' }), S().updateRow('events', id, { title: 'A2' })]);
+    expect(S().events[id]).toMatchObject({ title: 'A2', version: v0 + 2 });
+    expect(S().toasts.filter((t) => t.kind === 'error')).toHaveLength(0);
+  });
+
+  it('合并远端变更时忽略比本地更旧的版本', async () => {
+    const id = await newEvent('B');
+    const cur = S().events[id];
+    S().apply({ upserts: [{ table: 'events', row: { ...cur, title: '旧消息', version: cur.version - 1 } }], deletes: [] });
+    expect(S().events[id].title).toBe('B');
+    S().apply({ upserts: [{ table: 'events', row: { ...cur, title: '新消息', version: cur.version + 1 } }], deletes: [] });
+    expect(S().events[id].title).toBe('新消息');
+  });
+
+  it('打开中的事件包被远端删除时关闭看板', async () => {
+    const id = await newEvent('C');
+    S().openEvent(id);
+    S().apply({ upserts: [], deletes: [{ table: 'events', id }] });
+    expect(S().openEventId).toBeNull();
+  });
+
+  it('冲突：别人先改了，本地的过期修改被拒绝，提示并回到服务端最新数据', async () => {
+    const id = await newEvent('D');
+    const snap = await other.loadSnapshot(S().workspace!.id);
+    const row = snap.events.find((e) => e.id === id)!;
+    await other.update('events', id, { title: '别人改的' }, row.version);
+    await S().updateRow('events', id, { title: '我改的' });
+    expect(lastToast()).toContain('刚被其他成员修改');
+    expect(S().events[id].title).toBe('别人改的');
+  });
+
+  it('断网时修改被拦下，且本地不残留未保存的修改', async () => {
+    const id = await newEvent('E');
+    const before = S().events[id];
+    useStore.setState({ online: false });
+    try {
+      await S().updateRow('events', id, { title: '断网时改' });
+      await S().moveItems([{ kind: 'event', id, x: 999, y: 999, region_id: region, quadrant: 'Q2', version: before.version }]);
+      expect(lastToast()).toContain('网络已断开');
+      expect(S().events[id]).toMatchObject({ title: 'E', x: before.x, y: before.y });
+    } finally {
+      useStore.setState({ online: true });
+    }
+  });
+
+  it('无编辑权限时修改被拦下，且本地不残留未保存的修改', async () => {
+    const id = await newEvent('F');
+    useStore.setState({ role: 'viewer' });
+    try {
+      await S().updateRow('events', id, { title: 'Viewer 改' });
+      await S().archiveEvent(id, false);
+      expect(lastToast()).toContain('只读');
+      expect(S().events[id]).toMatchObject({ title: 'F', archived_at: null });
+    } finally {
+      useStore.setState({ role: 'owner' });
+    }
+  });
+
+  it('撤销整理：恢复到整理前的位置', async () => {
+    const id = await newEvent('G');
+    const before = S().events[id];
+    await S().moveItems([{ kind: 'event', id, x: 500, y: 300, region_id: region, quadrant: 'Q2', version: before.version }], '测试移动');
+    expect(S().events[id]).toMatchObject({ x: 500, y: 300 });
+    await S().undoLayout();
+    expect(S().events[id]).toMatchObject({ x: before.x, y: before.y });
+  });
+});

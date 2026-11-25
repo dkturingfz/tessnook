@@ -7,6 +7,7 @@ import { Canvas } from './canvas/Canvas';
 import { TopBar, type Dialog } from './components/TopBar';
 import { Toasts } from './components/Toasts';
 import { ConnectionBanner } from './components/ConnectionBanner';
+import { ErrorBoundary, PanelError } from './components/ErrorBoundary';
 
 // 看板（含拖拽库）与弹窗再单独拆分；工作区打开后在空闲时预取看板，首次打开不需要等待
 const loadBoard = () => import('./board/BoardPanel');
@@ -33,16 +34,25 @@ export default function WorkspaceView() {
         <main className={`main ${openEventId ? 'panel-open' : ''} panel-${panelMode}`}>
           <Canvas />
           {openEventId && (
-            <Suspense fallback={<aside className="board-panel loading" aria-busy="true" />}>
-              <BoardPanel />
-            </Suspense>
+            <ErrorBoundary resetKeys={[openEventId]}
+              fallback={(error, reset) => <PanelError error={error} onRetry={reset} onClose={() => useStore.getState().openEvent(null)} />}>
+              <Suspense fallback={<aside className="board-panel loading" aria-busy="true" />}>
+                <BoardPanel />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </main>
+        <ErrorBoundary resetKeys={[dialog]} fallback={(error) => {
+          // 弹窗出错：关闭弹窗并提示，不影响其他界面
+          setTimeout(() => { setDialog(null); useStore.getState().toast(`窗口无法打开：${error.message}`, 'error'); });
+          return null;
+        }}>
         <Suspense fallback={null}>
           {dialog === 'archive' && <ArchiveCenter onClose={() => setDialog(null)} />}
           {dialog === 'members' && <MembersDialog onClose={() => setDialog(null)} />}
           {dialog === 'activity' && <ActivityDialog onClose={() => setDialog(null)} />}
         </Suspense>
+        </ErrorBoundary>
         <Toasts />
       </div>
     </ReactFlowProvider>

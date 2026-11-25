@@ -553,6 +553,17 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
 .ws-item { justify-content: space-between; padding: 10px 12px; }
 .ws-item:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
 
+/* ——————— 错误兜底 ——————— */
+.crash { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; color: var(--text); }
+.crash > svg { color: var(--warn); }
+.crash h1 { margin: 0; font-size: 22px; }
+.crash p { max-width: 440px; margin: 0; line-height: 1.6; }
+.crash-detail { max-width: 520px; overflow-wrap: anywhere; background: var(--surface-2); padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--muted); }
+.panel-error { display: flex; align-items: center; justify-content: center; }
+.panel-error-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px; text-align: center; max-width: 360px; }
+.panel-error-body > svg { color: var(--warn); }
+.panel-error-body p, .crash p { text-wrap: pretty; }
+
 /* ——————— 提示 ——————— */
 .toasts { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 500; max-width: min(420px, calc(100vw - 32px)); }
 .toast { background: var(--ink); color: var(--on-ink); padding: 11px 15px; border-radius: 12px; box-shadow: var(--shadow-lg); cursor: pointer; line-height: 1.45; }
