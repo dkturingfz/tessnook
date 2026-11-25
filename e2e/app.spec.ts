@@ -536,3 +536,22 @@ test('外观：可手动选择浅色或深色，刷新后保持；跟随系统�
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ') + ' ' + (n.any?.[0]?.message ?? '').slice(0, 90)).join(' | ')}`)).toEqual([]);
   await ctx2.close();
 });
+
+test('手机宽度：不出现横向滚动；画布缩小时新建输入框仍保持可读大小，并能创建事件包', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await signUp(page, '手机', 'phone@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.locator('.region')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole('button', { name: /新建事件包/ }).first().click();
+  const input = page.locator('.draft input');
+  await expect(input).toBeFocused();
+  // 未修复时输入框随画布一起缩小到只有几像素高
+  expect((await input.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+  await input.fill('手机上新建');
+  await input.press('Enter');
+  await expect(card(page, '手机上新建')).toBeVisible();
+  expect((await db(page)).events.map((e: any) => e.title)).toEqual(['手机上新建']);
+  await ctx.close();
+});
