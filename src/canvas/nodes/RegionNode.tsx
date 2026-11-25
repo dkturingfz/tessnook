@@ -8,6 +8,7 @@ import { REGION_HEADER_H } from '../../domain/layout';
 import type { RegionNodeData } from '../adapter';
 import { useStore } from '../../store/store';
 import { canvasActions } from '../canvasActions';
+import { askConfirm } from '../../components/Ask';
 
 const ORDER: Quadrant[] = ['Q2', 'Q1', 'Q3', 'Q4']; // 2×2 网格中的阅读顺序：左上、右上、左下、右下
 
@@ -81,8 +82,8 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
             <button
               className="icon-btn nodrag"
               title="删除区域（事件包保留在画布上）"
-              onClick={() => {
-                if (confirm(`删除区域「${region.name}」？区域内的事件包会保留在原位置，但不再属于任何象限。`)) deleteRegion(region.id);
+              onClick={async () => {
+                if (await askConfirm({ title: '删除区域', message: `删除区域「${region.name}」？区域内的事件包会保留在原位置，但不再属于任何象限。`, confirmLabel: '删除', danger: true })) deleteRegion(region.id);
               }}
             >
               <Trash2 size={14} />

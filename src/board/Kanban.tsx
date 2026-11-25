@@ -27,6 +27,7 @@ import { useStore, canEdit } from '../store/store';
 import { dueState, formatDue } from '../components/format';
 import { TaskDetail } from './TaskDetail';
 import { Avatar } from '../components/Avatar';
+import { askConfirm } from '../components/Ask';
 
 const L = (id: ID) => `l:${id}`;
 const T = (id: ID) => `t:${id}`;
@@ -226,9 +227,9 @@ function ListColumn({ list, taskIds, readOnly, onOpenTask }: {
             <button className="icon-btn" onClick={() => setMenu(!menu)} aria-label="列表操作"><MoreHorizontal size={14} /></button>
             {menu && (
               <div className="dropdown" onMouseLeave={() => setMenu(false)}>
-                <button className="danger" onClick={() => {
+                <button className="danger" onClick={async () => {
                   setMenu(false);
-                  if (confirm(`删除列表「${list.title}」及其中 ${taskIds.length} 个任务？`)) removeRow('lists', list.id);
+                  if (await askConfirm({ title: '删除列表', message: `删除列表「${list.title}」及其中 ${taskIds.length} 个任务？`, confirmLabel: '删除', danger: true })) removeRow('lists', list.id);
                 }}><Trash2 size={14} />删除列表</button>
               </div>
             )}

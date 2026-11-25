@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Download, Upload } from 'lucide-react';
 import { useStore } from '../store/store';
+import { askConfirm } from './Ask';
 
 /** “从备份导入…”：选择 JSON 文件后导入为新的工作空间 */
 export function ImportBackupButton({ className, onDone }: { className?: string; onDone?(): void }) {
@@ -17,7 +18,7 @@ export function ImportBackupButton({ className, onDone }: { className?: string; 
           const f = e.target.files?.[0];
           e.target.value = '';
           onDone?.();
-          if (f) await useStore.getState().importBackupFile(f);
+          if (f) await useStore.getState().importBackupFile(f, (title, message) => askConfirm({ title, message, confirmLabel: '导入' }));
         }}
       />
     </>

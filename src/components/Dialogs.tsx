@@ -6,6 +6,7 @@ import { useStore } from '../store/store';
 import { relTime } from './format';
 import { roleName } from './TopBar';
 import { Avatar } from './Avatar';
+import { askConfirm } from './Ask';
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose(): void; children: React.ReactNode; wide?: boolean }) {
   useEffect(() => {
@@ -75,7 +76,7 @@ export function ArchiveCenter({ onClose }: { onClose(): void }) {
               <button onClick={() => { s.openEvent(e.id); onClose(); }}><Eye size={14} />查看看板</button>
               {can(role, 'archive') && <button onClick={() => s.restoreEvent(e.id)}><ArchiveRestore size={14} />恢复</button>}
               {can(role, 'deleteEvent') && (
-                <button className="danger" onClick={() => confirm(`永久删除「${e.title}」？无法撤销。`) && s.removeRow('events', e.id)}>删除</button>
+                <button className="danger" onClick={async () => (await askConfirm({ title: '永久删除事件包', message: `永久删除「${e.title}」及其全部任务？此操作无法撤销。`, confirmLabel: '永久删除', danger: true })) && s.removeRow('events', e.id)}>删除</button>
               )}
             </div>
           ))}
@@ -127,10 +128,10 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
               </select>
             ) : <span className="role-tag">{roleName(m.role)}</span>}
             {(isOwner && m.user_id !== me.id) && (
-              <button className="danger" onClick={() => confirm(`移除成员 ${m.display_name}？`) && s.removeMember(m.user_id)}>移除</button>
+              <button className="danger" onClick={async () => (await askConfirm({ title: '移除成员', message: `将 ${m.display_name} 移出该工作空间？对方将无法再访问其中的内容。`, confirmLabel: '移除', danger: true })) && s.removeMember(m.user_id)}>移除</button>
             )}
             {m.user_id === me.id && !soleOwner(me.id) && (
-              <button className="danger" onClick={() => confirm('退出该工作空间？') && s.removeMember(me.id)}>退出</button>
+              <button className="danger" onClick={async () => (await askConfirm({ title: '退出工作空间', message: '退出后需要重新被邀请才能再次加入。', confirmLabel: '退出', danger: true })) && s.removeMember(me.id)}>退出</button>
             )}
           </div>
         ))}

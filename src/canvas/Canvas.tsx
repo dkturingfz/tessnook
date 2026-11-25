@@ -19,6 +19,7 @@ import { useStore, canEdit as canEditSel } from '../store/store';
 import { can, validateStack } from '../domain/rules';
 import { buildNodes, mergeNodes, type AppNode } from './adapter';
 import { quadrantName } from '../domain/axes';
+import { askConfirm, askText } from '../components/Ask';
 import { RegionNode } from './nodes/RegionNode';
 import { EventNode } from './nodes/EventNode';
 import { StackNode } from './nodes/StackNode';
@@ -473,8 +474,8 @@ function ContextMenu({ menu, onClose, onCreateAt }: { menu: Menu; onClose(): voi
         {editable && item(done ? '重新打开' : '标记完成', () => s.setEventStatus(e.id, done ? 'active' : 'completed'))}
         {editable && item('归档', () => s.archiveEvent(e.id, false))}
         {editable && !done && item('完成并归档', () => s.archiveEvent(e.id, true))}
-        {can(s.role, 'deleteEvent') && item('永久删除…', () => {
-          if (confirm(`永久删除「${e.title}」及其全部任务？此操作无法撤销。`)) s.removeRow('events', e.id);
+        {can(s.role, 'deleteEvent') && item('永久删除…', async () => {
+          if (await askConfirm({ title: '永久删除事件包', message: `永久删除「${e.title}」及其全部任务？此操作无法撤销。`, confirmLabel: '永久删除', danger: true })) s.removeRow('events', e.id);
         }, true)}
       </>
     );
@@ -483,9 +484,9 @@ function ContextMenu({ menu, onClose, onCreateAt }: { menu: Menu; onClose(): voi
     if (!st) return null;
     body = (
       <>
-        {editable && item('重命名卡片堆', () => {
-          const name = prompt('卡片堆名称', st.name ?? '');
-          if (name !== null) s.updateRow('stacks', st.id, { name: name.trim() || null });
+        {editable && item('重命名卡片堆', async () => {
+          const name = await askText({ title: '重命名卡片堆', initial: st.name ?? '', placeholder: '卡片堆名称（可留空）', allowEmpty: true, confirmLabel: '保存' });
+          if (name !== null) s.updateRow('stacks', st.id, { name: name || null });
         })}
         {editable && item('解除堆叠', () => s.unstack(st.id))}
       </>

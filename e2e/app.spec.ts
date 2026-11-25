@@ -139,9 +139,19 @@ test('删除工作空间后回到空间选择页，且没有错误提示', async
   await signUp(page, 'D', 'd@x.com');
   await page.getByRole('button', { name: '创建' }).click();
   await expect(page.locator('.region')).toBeVisible();
-  page.on('dialog', (d) => d.accept(d.type() === 'prompt' ? '我的工作空间' : undefined));
   await page.getByTestId('ws-switch').click();
   await page.getByText('删除工作空间…').click();
+  // 应用内的确认框：必须输入空间名称才能确认；Esc 取消且不删除
+  const ask = page.getByRole('dialog', { name: '删除工作空间' });
+  await expect(ask).toBeVisible();
+  await expect(ask.getByRole('button', { name: '永久删除' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(ask).toHaveCount(0);
+  await expect(page.locator('.region')).toBeVisible();
+  await page.getByTestId('ws-switch').click();
+  await page.getByText('删除工作空间…').click();
+  await ask.getByRole('textbox').fill('我的工作空间');
+  await ask.getByRole('button', { name: '永久删除' }).click();
   await expect(page.getByText('新建工作空间')).toBeVisible();
   await page.waitForTimeout(500);
   await expect(page.locator('.toast.error')).toHaveCount(0);
@@ -258,9 +268,9 @@ test('备份：导出为文件，再导入为新的工作空间，内容一致',
   const file = testInfo.outputPath('backup.json');
   await download.saveAs(file);
 
-  page.once('dialog', (d) => d.accept());
   await page.getByTestId('ws-switch').click();
   await page.getByTestId('import-backup-input').setInputFiles(file);
+  await page.getByRole('alertdialog', { name: '导入备份' }).getByRole('button', { name: '导入' }).click();
   await expect(page.getByTestId('ws-switch')).toContainText('我的工作空间（导入）');
   await expect(card(page, '论文')).toBeVisible();
   await expect(card(page, '报销')).toBeVisible();
@@ -324,6 +334,15 @@ test('无障碍：主要界面没有 WCAG A/AA 违规（浅色与深色）；任
     await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog', { name: '任务详情' })).toBeVisible();
     await check('.task-detail');
+    // 应用内确认框（替代原生 confirm）：危险操作默认焦点在“取消”
+    await page.keyboard.press('Escape');
+    await page.getByTitle('删除区域（事件包保留在画布上）').click();
+    const ask = page.getByRole('alertdialog', { name: '删除区域' });
+    await expect(ask).toBeVisible();
+    await expect(ask.getByRole('button', { name: '取消' })).toBeFocused();
+    await check('.modal.ask');
+    await page.keyboard.press('Escape');
+    await expect(ask).toHaveCount(0);
     await ctx.close();
   }
 });
@@ -331,6 +350,9 @@ test('无障碍：主要界面没有 WCAG A/AA 违规（浅色与深色）；任
 test('新手引导与快捷键：开始提示、N 新建、? 说明、/ 搜索、Esc 由近及远关闭', async ({ page }) => {
   await signUp(page, 'K', 'kb@x.com');
   await page.getByRole('button', { name: '创建' }).click();
+  // 桌面（鼠标键盘）只显示键盘说明，不显示触屏说明
+  await expect(page.locator('.start-hint .only-fine')).toBeVisible();
+  await expect(page.locator('.start-hint .only-coarse')).toBeHidden();
   await expect(page.getByTestId('start-hint')).toContainText('双击画布');
 
   await page.locator('.react-flow__pane').click();
@@ -678,9 +700,9 @@ test('成员退出与被移出：回到空间选择页并说明原因，不出�
   const errors = (p: typeof B) => p.locator('.toast.error');
 
   // B 自己退出
-  B.once('dialog', (d) => d.accept());
   await B.getByTitle('成员与邀请').click();
   await B.locator('.member-row').getByRole('button', { name: '退出' }).click();
+  await B.getByRole('alertdialog', { name: '退出工作空间' }).getByRole('button', { name: '退出' }).click();
   await expect(B.locator('.toast', { hasText: '已退出「课题组」' })).toBeVisible();
   await expect(B.getByLabel('新工作空间名称')).toBeVisible(); // 回到空间选择页
   await expect(errors(B)).toHaveCount(0);
@@ -695,8 +717,14 @@ test('成员退出与被移出：回到空间选择页并说明原因，不出�
   await expect(B.locator('.region')).toBeVisible();
   await A.reload();
   await A.getByTitle('成员与邀请').click();
-  A.once('dialog', (d) => d.accept());
   await A.locator('.member-row', { hasText: 'Bob' }).getByRole('button', { name: '移除' }).click();
+  // 确认框叠在成员弹窗之上；按 Esc 只关闭确认框
+  await expect(A.getByRole('alertdialog', { name: '移除成员' })).toBeVisible();
+  await A.keyboard.press('Escape');
+  await expect(A.getByRole('alertdialog', { name: '移除成员' })).toHaveCount(0);
+  await expect(A.getByRole('dialog', { name: '成员与邀请' })).toBeVisible();
+  await A.locator('.member-row', { hasText: 'Bob' }).getByRole('button', { name: '移除' }).click();
+  await A.getByRole('alertdialog', { name: '移除成员' }).getByRole('button', { name: '移除' }).click();
   await expect(A.locator('.member-row', { hasText: 'Bob' })).toHaveCount(0);
   await expect(B.locator('.toast', { hasText: '你已不再是「课题组」的成员' })).toBeVisible({ timeout: 8000 });
   await expect(B.getByLabel('新工作空间名称')).toBeVisible();

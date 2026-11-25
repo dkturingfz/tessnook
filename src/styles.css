@@ -652,11 +652,13 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
   .auth-card { padding: 22px; }
 }
 
-/* 触屏设备（没有悬停、指针粗）隐藏只对键盘鼠标有意义的提示，换成触屏说明 */
-.only-coarse { display: none; }
+/* 触屏设备（没有悬停、指针粗）隐藏只对键盘鼠标有意义的提示，换成触屏说明。
+   两条规则互斥且用 !important：不受 .start-hint .muted 等更具体的 display 规则影响 */
+@media not ((hover: none) and (pointer: coarse)) {
+  .only-coarse { display: none !important; }
+}
 @media (hover: none) and (pointer: coarse) {
   .only-fine { display: none !important; }
-  .only-coarse { display: inline; }
 }
 
 /* 首屏占位（index.html 中的静态标记） */
@@ -665,3 +667,17 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
 .boot-name { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
 @keyframes boot-pulse { 50% { opacity: 0.55; transform: scale(0.96); } }
 @media (prefers-reduced-motion: reduce) { .boot-logo { animation: none; } }
+
+/* 应用内确认框 / 输入框（components/Ask.tsx），叠在其他弹窗之上 */
+.ask-backdrop { z-index: 400; }
+.modal.ask { width: min(420px, 100%); }
+.ask-message { margin: 0; color: var(--text); line-height: 1.6; white-space: pre-line; }
+.modal.ask form { display: flex; flex-direction: column; gap: 14px; }
+.modal.ask input { width: 100%; }
+.ask-actions { display: flex; justify-content: flex-end; gap: 8px; }
+button.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+button.danger-solid:hover:not(:disabled) { filter: brightness(0.94); background: var(--danger); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) button.danger-solid { color: #111615; }
+}
+:root[data-theme="dark"] button.danger-solid { color: #111615; }

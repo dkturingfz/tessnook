@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useStore } from './store/store';
 import { AuthPage, WorkspacePicker } from './components/AuthPage';
 import { Toasts } from './components/Toasts';
+import { AskHost } from './components/Ask';
 
 // 工作区（画布、看板）按需加载：登录页只下载登录所需的代码
 const loadWorkspace = () => import('./WorkspaceView');
@@ -79,13 +80,14 @@ export function App() {
     }
   }, [user, workspace, workspaces, loading]);
 
-  if (!authChecked) return <div className="splash">加载中…</div>;
-  if (!user) return <><AuthPage /><Toasts /></>;
-  if (!workspace) return <>{loading ? <div className="splash">加载中…</div> : <WorkspacePicker />}<Toasts /></>;
-
-  return (
+  let content: React.ReactNode;
+  if (!authChecked) content = <div className="splash">加载中…</div>;
+  else if (!user) content = <><AuthPage /><Toasts /></>;
+  else if (!workspace) content = <>{loading ? <div className="splash">加载中…</div> : <WorkspacePicker />}<Toasts /></>;
+  else content = (
     <Suspense fallback={<div className="splash">加载中…</div>}>
       <WorkspaceView />
     </Suspense>
   );
+  return <>{content}<AskHost /></>;
 }

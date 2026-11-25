@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckSquare, Square, Trash2, X } from 'lucide-react';
+import { askConfirm } from '../components/Ask';
 import type { ID, Task } from '../domain/types';
 import { useStore } from '../store/store';
 
@@ -111,7 +112,7 @@ export function TaskDetail({ taskId, readOnly, onClose }: { taskId: ID; readOnly
 
         {!readOnly && (
           <div className="modal-foot">
-            <button className="danger" onClick={() => { if (confirm('删除该任务？')) { removeRow('tasks', task.id); onClose(); } }}>
+            <button className="danger" onClick={async () => { if (await askConfirm({ title: '删除任务', message: `删除任务「${task.title}」及其检查清单？`, confirmLabel: '删除', danger: true })) { removeRow('tasks', task.id); onClose(); } }}>
               <Trash2 size={14} />删除任务
             </button>
           </div>

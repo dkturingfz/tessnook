@@ -8,6 +8,7 @@ import { avatarColor, initials } from './format';
 import { Avatar } from './Avatar';
 import { AlertsMenu } from './AlertsMenu';
 import { ExportBackupButton, ImportBackupButton } from './BackupButtons';
+import { askText } from './Ask';
 
 export type Dialog = 'archive' | 'members' | 'activity' | null;
 
@@ -48,24 +49,30 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
               </button>
             ))}
             <hr />
-            <button onClick={() => {
+            <button onClick={async () => {
               setWsMenu(false);
-              const name = prompt('新工作空间名称');
-              if (name?.trim()) s.createWorkspace(name.trim());
+              const name = await askText({ title: '新建工作空间', placeholder: '工作空间名称', confirmLabel: '创建' });
+              if (name) s.createWorkspace(name);
             }}><Plus size={14} />新建工作空间</button>
             <ImportBackupButton onDone={() => setWsMenu(false)} />
             <ExportBackupButton onDone={() => setWsMenu(false)} />
             {can(role, 'renameWorkspace') && (
-              <button onClick={() => {
+              <button onClick={async () => {
                 setWsMenu(false);
-                const name = prompt('重命名工作空间', workspace.name);
-                if (name?.trim()) s.renameWorkspace(name.trim());
+                const name = await askText({ title: '重命名工作空间', initial: workspace.name, confirmLabel: '保存' });
+                if (name && name !== workspace.name) s.renameWorkspace(name);
               }}>重命名当前空间</button>
             )}
             {can(role, 'deleteWorkspace') && (
-              <button className="danger" onClick={() => {
+              <button className="danger" onClick={async () => {
                 setWsMenu(false);
-                const typed = prompt(`永久删除工作空间及其全部数据。请输入空间名称「${workspace.name}」确认：`);
+                const typed = await askText({
+                  title: '删除工作空间',
+                  message: `将永久删除「${workspace.name}」及其中的全部数据，所有成员都将无法访问，且无法撤销。\n请输入空间名称确认：`,
+                  mustEqual: workspace.name,
+                  confirmLabel: '永久删除',
+                  danger: true,
+                });
                 if (typed === workspace.name) s.deleteWorkspace();
               }}>删除工作空间…</button>
             )}
