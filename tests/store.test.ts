@@ -142,6 +142,21 @@ describe('store', () => {
     }
   });
 
+  it('改完标题立即归档（标题尚未保存完）不会被误判为冲突', async () => {
+    const id = await newEvent('J');
+    const orig = repo.update.bind(repo);
+    repo.update = async (...a: Parameters<typeof orig>) => { await new Promise((r) => setTimeout(r, 30)); return orig(...a); }; // 模拟网络延迟
+    try {
+      const n = S().toasts.filter((t) => t.kind === 'error').length;
+      await Promise.all([S().updateRow('events', id, { title: 'J2' }), S().archiveEvent(id, true)]);
+      expect(S().toasts.filter((t) => t.kind === 'error').map((t) => t.text).slice(n)).toEqual([]);
+      expect(S().events[id]).toMatchObject({ title: 'J2', status: 'completed' });
+      expect(S().events[id].archived_at).toBeTruthy();
+    } finally {
+      repo.update = orig;
+    }
+  });
+
   it('撤销调整区域尺寸：区域尺寸与区域内条目位置一起恢复，且撤销本身不再进入历史', async () => {
     const id = await newEvent('H');
     const r0 = { ...S().regions[region] };

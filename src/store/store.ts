@@ -272,6 +272,19 @@ export const useStore = create<AppState>((set, get) => {
     });
   }
 
+  const rowOfMove = (m: ItemMove) => (m.kind === 'event' ? get().events[m.id] : get().stacks[m.id]);
+
+  /**
+   * 写入在队列中排队执行。调用方给的版本若就是调用时的本地版本，执行时改用届时的最新本地版本：
+   * 排在前面的自己的写入（改标题、上一次移动……）完成后版本已 +1，不应被当成冲突。
+   * 调用方有意给的旧版本（例如拖动开始时记下的）保持不变，用于发现期间他人的修改。
+   * 必须在本地乐观更新之前调用；返回的函数在队列内执行时调用。
+   */
+  function freshVersions(moves: ItemMove[]): () => ItemMove[] {
+    const current = new Set(moves.filter((m) => rowOfMove(m)?.version === m.version).map((m) => m.id));
+    return () => moves.map((m) => (current.has(m.id) ? { ...m, version: rowOfMove(m)?.version ?? m.version } : m));
+  }
+
   function snapshotLayout(label: string, ids: { kind: 'event' | 'stack'; id: ID }[]): LayoutSnapshot {
     const s = get();
     return {
@@ -654,11 +667,7 @@ export const useStore = create<AppState>((set, get) => {
         const snap = snapshotLayout(historyLabel, moves.map((m) => ({ kind: m.kind, id: m.id })));
         set((s) => ({ layoutHistory: [...s.layoutHistory.slice(-19), snap] }));
       }
-      const rowOf = (m: ItemMove) => (m.kind === 'event' ? get().events[m.id] : get().stacks[m.id]);
-      // 调用方给的版本若就是当前本地版本，执行时改用届时的最新本地版本：
-      // 连续快速移动（如按住方向键）时，前一次自己的写入完成后版本已 +1，不应被当成冲突。
-      // 调用方有意给的旧版本（拖动开始时记下的）保持不变，用于发现拖动期间他人的修改。
-      const current = new Set(moves.filter((m) => rowOf(m)?.version === m.version).map((m) => m.id));
+      const refresh = freshVersions(moves);
       for (const m of moves) {
         patchLocal(m.kind === 'event' ? 'events' : 'stacks', m.id, {
           x: m.x, y: m.y, region_id: m.region_id, quadrant: m.region_id ? m.quadrant : null,
@@ -666,7 +675,7 @@ export const useStore = create<AppState>((set, get) => {
       }
       // 在写入队列内应用结果（与 updateRow 一致），保证队列中的下一次写入读到的是新版本
       await mutate('移动', async () => {
-        const cs = await backend().moveItems(ws.id, moves.map((m) => (current.has(m.id) ? { ...m, version: rowOf(m)?.version ?? m.version } : m)));
+        const cs = await backend().moveItems(ws.id, refresh());
         get().apply(cs);
         return cs;
       });
@@ -683,7 +692,7 @@ export const useStore = create<AppState>((set, get) => {
       if (!guard('edit')) return;
       const r = get().regions[id];
       if (!r) return;
-      const version = r.version;
+      const refresh = freshVersions(moves);
       const snap = snapshotLayout(historyLabel ?? '', moves.map((m) => ({ kind: m.kind, id: m.id })));
       snap.region = { id, x: r.x, y: r.y, width: r.width, height: r.height };
       patchLocal('regions', id, rect);
@@ -692,9 +701,12 @@ export const useStore = create<AppState>((set, get) => {
           x: m.x, y: m.y, region_id: m.region_id, quadrant: m.region_id ? m.quadrant : null,
         });
       }
-      const cs = await mutate('调整区域', () => backend().resizeRegion(id, rect, version, moves));
+      const cs = await mutate('调整区域', async () => {
+        const out = await backend().resizeRegion(id, rect, get().regions[id]?.version ?? r.version, refresh());
+        get().apply(out);
+        return out;
+      });
       if (cs) {
-        get().apply(cs);
         if (historyLabel) set((s) => ({ layoutHistory: [...s.layoutHistory.slice(-19), snap] }));
       }
     },
@@ -734,9 +746,12 @@ export const useStore = create<AppState>((set, get) => {
       const e = get().events[id];
       if (!e) return;
       patchLocal('events', id, { archived_at: new Date().toISOString() });
-      const cs = await mutate('归档', () => backend().archiveEvent(id, e.version, complete), 'archive');
+      const cs = await mutate('归档', async () => {
+        const out = await backend().archiveEvent(id, get().events[id]?.version ?? e.version, complete);
+        get().apply(out);
+        return out;
+      }, 'archive');
       if (cs) {
-        get().apply(cs);
         if (get().openEventId === id) get().openEvent(null);
         get().toast(`已归档「${e.title}」`, 'success', { label: '撤销', run: () => get().restoreEvent(id) });
       }
