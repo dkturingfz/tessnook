@@ -62,7 +62,8 @@ function RegionNodeImpl({ data }: NodeProps<Node<RegionNodeData, 'region'>>) {
           <span
             className="region-name region-drag"
             title={canEdit ? '双击重命名，拖动移动区域' : undefined}
-            onDoubleClick={(e) => { e.stopPropagation(); if (canEdit) setEditing(true); }}
+            // 开始编辑时取当前名称：他人可能已改名，用旧值提交会把名称悄悄改回去
+            onDoubleClick={(e) => { e.stopPropagation(); if (canEdit) { setName(region.name); setEditing(true); } }}
           >
             {region.name}
           </span>

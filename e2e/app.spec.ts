@@ -749,3 +749,31 @@ test('正在输入时，其他成员改动同一事件包（如拖动卡片）�
   await A.locator('.board-head').click();
   await expect.poll(async () => (await db(B)).events[0].description).toBe('写到一半的描述');
 });
+
+test('区域重命名：他人改名后我再双击编辑，输入框显示最新名称，不改动直接离开不会把名称改回去', async ({ context }) => {
+  const A = await context.newPage();
+  await signUp(A, 'Alice', 'rename-a@x.com');
+  await A.getByRole('button', { name: '创建' }).click();
+  await expect(A.locator('.region')).toBeVisible();
+  await A.getByTitle('成员与邀请').click();
+  await A.fill('.invite input[type=email]', 'rename-b@x.com');
+  await A.getByText('生成邀请链接').click();
+  const link = await A.locator('.invite-link code').innerText();
+  await A.keyboard.press('Escape');
+  const B = await context.newPage();
+  await signUp(B, 'Bob', 'rename-b@x.com', link);
+  await expect(B.locator('.region')).toBeVisible();
+
+  // B 改名
+  await B.locator('.region-name').dblclick();
+  await B.locator('.region-name-input').fill('本周重点');
+  await B.locator('.region-name-input').press('Enter');
+  await expect(A.locator('.region-name')).toHaveText('本周重点');
+  // A 双击编辑：显示最新名称；不改动直接离开
+  await A.locator('.region-name').dblclick();
+  await expect(A.locator('.region-name-input')).toHaveValue('本周重点');
+  await A.locator('.region-name-input').press('Enter');
+  await A.waitForTimeout(500);
+  expect((await db(A)).regions[0].name).toBe('本周重点');
+  await expect(B.locator('.region-name')).toHaveText('本周重点');
+});
