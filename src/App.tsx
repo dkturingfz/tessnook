@@ -4,7 +4,19 @@ import { AuthPage, WorkspacePicker } from './components/AuthPage';
 import { Toasts } from './components/Toasts';
 
 // 工作区（画布、看板）按需加载：登录页只下载登录所需的代码
-const WorkspaceView = lazy(() => import('./WorkspaceView'));
+const loadWorkspace = () => import('./WorkspaceView');
+const WorkspaceView = lazy(loadWorkspace);
+
+/** 预取工作区代码：已登录时立即开始（与工作空间数据并行）；在登录页时等浏览器空闲（用户输入账号密码期间）。省流量模式下不在登录页预取 */
+function prefetchWorkspace(now: boolean) {
+  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+  // 预取失败（如网络波动）时忽略：真正进入工作区时会重新加载，并由错误边界处理失败
+  const go = () => void loadWorkspace().catch(() => {});
+  if (now) return go();
+  if (saveData) return;
+  const idle = (window as Window & { requestIdleCallback?: (fn: () => void) => void }).requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 1500));
+  idle(go);
+}
 
 const INVITE_KEY = 'tessnook:pending-invite';
 
@@ -24,6 +36,10 @@ export function App() {
     }
     useStore.getState().init();
   }, []);
+
+  useEffect(() => {
+    if (authChecked) prefetchWorkspace(!!user);
+  }, [authChecked, user]);
 
   // 登录后：处理待接受邀请，否则自动打开上次的工作空间
   useEffect(() => {

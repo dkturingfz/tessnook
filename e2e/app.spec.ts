@@ -612,3 +612,23 @@ test('键盘移动卡片：方向键移动选中的卡片并保存，跨象限�
   await expect(card(page, '键盘卡片')).toBeVisible();
   expect((await db(page)).events[0]).toMatchObject({ x: saved.x, y: saved.y, quadrant: 'Q1' });
 });
+
+test('首屏加载（生产构建）：后端分包随入口并行预加载；登录页空闲时预取工作区代码，省流量模式下不预取', async ({ browser }) => {
+  const PROD = 'http://localhost:4175';
+  const run = async (saveData: boolean) => {
+    const ctx = await browser.newContext();
+    if (saveData) await ctx.addInitScript(() => Object.defineProperty(navigator, 'connection', { value: { saveData: true } }));
+    const page = await ctx.newPage();
+    const urls: string[] = [];
+    page.on('request', (r) => urls.push(new URL(r.url()).pathname));
+    await page.goto(PROD);
+    await expect(page.locator('input[type=email]')).toBeVisible();
+    expect(await page.locator('link[rel=modulepreload][href*="Repo-"]').count()).toBe(1);
+    await page.waitForTimeout(2500); // 空闲预取的回退定时为 1.5 秒
+    const workspaceFetched = urls.some((u) => /\/assets\/WorkspaceView-[\w-]+\.js$/.test(u));
+    await ctx.close();
+    return workspaceFetched;
+  };
+  expect(await run(false)).toBe(true);
+  expect(await run(true)).toBe(false);
+});
