@@ -579,3 +579,24 @@ test('手机宽度：不出现横向滚动；画布缩小时新建输入框仍�
   expect((await label.boundingBox())!.height).toBeLessThan(lh * 1.5);
   await ctx.close();
 });
+
+test('键盘移动卡片：方向键移动选中的卡片并保存，跨象限时提示；连续按键不产生冲突', async ({ page }) => {
+  await signUp(page, 'K', 'kb@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '键盘卡片', 0.4, 0.3);
+  const before = (await db(page)).events[0];
+  await card(page, '键盘卡片').click({ modifiers: ['Shift'] });
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => (await db(page)).events[0].x).toBe(before.x + 80);
+  expect((await db(page)).events[0].y).toBe(before.y);
+  // Shift+方向键大步移动，跨到右侧紧急象限
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+ArrowRight');
+  await expect.poll(async () => (await db(page)).events[0].quadrant).toBe('Q1');
+  await expect(page.locator('.toast', { hasText: '已移至' })).toBeVisible();
+  await expect(page.locator('.toast', { hasText: /冲突|其他成员修改/ })).toHaveCount(0);
+  // 刷新后位置保持
+  const saved = (await db(page)).events[0];
+  await page.reload();
+  await expect(card(page, '键盘卡片')).toBeVisible();
+  expect((await db(page)).events[0]).toMatchObject({ x: saved.x, y: saved.y, quadrant: 'Q1' });
+});

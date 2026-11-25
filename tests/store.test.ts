@@ -121,6 +121,27 @@ describe('store', () => {
     expect([eb.x, eb.y]).toEqual([x, y]); // 不动别人的卡片
   });
 
+  it('连续快速移动（前一次尚未保存完）不会被误判为冲突', async () => {
+    const id = await newEvent('I');
+    const orig = repo.moveItems.bind(repo);
+    repo.moveItems = async (...a: Parameters<typeof orig>) => { await new Promise((r) => setTimeout(r, 30)); return orig(...a); }; // 模拟网络延迟
+    try {
+      const errorsBefore = S().toasts.filter((t) => t.kind === 'error').length;
+      const step = () => {
+        const e = S().events[id];
+        return S().moveItems([{ kind: 'event', id, x: e.x + 16, y: e.y, region_id: region, quadrant: 'Q2', version: e.version }]);
+      };
+      const x0 = S().events[id].x;
+      await Promise.all([step(), step(), step()]);
+      expect(S().toasts.filter((t) => t.kind === 'error').map((t) => t.text).slice(errorsBefore)).toEqual([]);
+      expect(S().events[id].x).toBe(x0 + 48);
+      const saved = (await other.loadSnapshot(S().workspace!.id)).events.find((e) => e.id === id)!;
+      expect(saved.x).toBe(x0 + 48);
+    } finally {
+      repo.moveItems = orig;
+    }
+  });
+
   it('撤销调整区域尺寸：区域尺寸与区域内条目位置一起恢复，且撤销本身不再进入历史', async () => {
     const id = await newEvent('H');
     const r0 = { ...S().regions[region] };

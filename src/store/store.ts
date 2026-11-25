@@ -654,13 +654,22 @@ export const useStore = create<AppState>((set, get) => {
         const snap = snapshotLayout(historyLabel, moves.map((m) => ({ kind: m.kind, id: m.id })));
         set((s) => ({ layoutHistory: [...s.layoutHistory.slice(-19), snap] }));
       }
+      const rowOf = (m: ItemMove) => (m.kind === 'event' ? get().events[m.id] : get().stacks[m.id]);
+      // 调用方给的版本若就是当前本地版本，执行时改用届时的最新本地版本：
+      // 连续快速移动（如按住方向键）时，前一次自己的写入完成后版本已 +1，不应被当成冲突。
+      // 调用方有意给的旧版本（拖动开始时记下的）保持不变，用于发现拖动期间他人的修改。
+      const current = new Set(moves.filter((m) => rowOf(m)?.version === m.version).map((m) => m.id));
       for (const m of moves) {
         patchLocal(m.kind === 'event' ? 'events' : 'stacks', m.id, {
           x: m.x, y: m.y, region_id: m.region_id, quadrant: m.region_id ? m.quadrant : null,
         });
       }
-      const cs = await mutate('移动', () => backend().moveItems(ws.id, moves));
-      if (cs) get().apply(cs);
+      // 在写入队列内应用结果（与 updateRow 一致），保证队列中的下一次写入读到的是新版本
+      await mutate('移动', async () => {
+        const cs = await backend().moveItems(ws.id, moves.map((m) => (current.has(m.id) ? { ...m, version: rowOf(m)?.version ?? m.version } : m)));
+        get().apply(cs);
+        return cs;
+      });
     },
 
     async moveRegion(id, x, y, version) {

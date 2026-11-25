@@ -18,6 +18,7 @@ import { EVENT_W, cardCenter, locate } from '../domain/layout';
 import { useStore, canEdit as canEditSel } from '../store/store';
 import { can, validateStack } from '../domain/rules';
 import { buildNodes, mergeNodes, type AppNode } from './adapter';
+import { quadrantName } from '../domain/axes';
 import { RegionNode } from './nodes/RegionNode';
 import { EventNode } from './nodes/EventNode';
 import { StackNode } from './nodes/StackNode';
@@ -25,6 +26,10 @@ import { DraftNode } from './nodes/DraftNode';
 import { canvasActions } from './canvasActions';
 import { useAlerts } from '../store/alerts';
 import { ShortcutsHelp } from './ShortcutsHelp';
+
+/** 键盘移动卡片的方向与步长（与吸附网格一致） */
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+const KEY_STEP = 16;
 
 const nodeTypes: NodeTypes = { region: RegionNode, event: EventNode, stack: StackNode, draft: DraftNode } as any;
 
@@ -281,6 +286,33 @@ export function Canvas() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (ARROWS[e.key] && (t === document.body || t.closest('.react-flow'))) {
+        // 键盘移动卡片：选中的卡片（没有选中时取焦点所在的卡片）每次移动一格，Shift 五格。
+        // 与拖动结束使用同样的保存逻辑：重新判定所在区域与象限。
+        const focused = t.closest('.react-flow__node')?.getAttribute('data-id');
+        const targets = nodesRef.current.filter((n) => (n.type === 'event' || n.type === 'stack') && (n.selected || n.id === focused));
+        if (!targets.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!canEditSel(s)) return;
+        const [dx, dy] = ARROWS[e.key].map((v) => v * KEY_STEP * (e.shiftKey ? 5 : 1));
+        const regionList = Object.values(s.regions);
+        const moves: ItemMove[] = [];
+        let crossed: string | null = null;
+        for (const n of targets) {
+          const row = n.type === 'event' ? s.events[n.id] : s.stacks[n.id];
+          if (!row || (n.type === 'event' && (row as { stack_id?: ID | null }).stack_id)) continue;
+          const x = row.x + dx, y = row.y + dy;
+          const loc = locate(regionList, cardCenter({ x, y }));
+          if (loc.region_id !== row.region_id || loc.quadrant !== row.quadrant) {
+            const r = loc.region_id ? s.regions[loc.region_id] : null;
+            crossed = r && loc.quadrant ? `已移至「${quadrantName(r, loc.quadrant)}」` : '已移出区域';
+          }
+          moves.push({ kind: n.type as 'event' | 'stack', id: n.id, x, y, ...loc, version: row.version });
+        }
+        void s.moveItems(moves).then(() => { if (crossed) useStore.getState().toast(crossed); });
+        return;
+      }
       if (e.key === '?') { e.preventDefault(); setHelp(true); return; }
       if (e.key === '/') { e.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid=search]')?.focus(); return; }
       const k = e.key.toLowerCase();
