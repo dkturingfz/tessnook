@@ -76,12 +76,20 @@ export class SupabaseRepo implements Repo {
 
   // ———————————————————— 工作空间 ————————————————————
 
+  /**
+   * 当前登录用户 id：读取本地会话（必要时自动刷新令牌），不额外请求认证服务器。
+   * 数据访问的权限仍由服务端 RLS 依据令牌判定，这里只用于在结果中找到“我”。
+   */
+  private async userId(): Promise<ID> {
+    const { data } = await this.sb.auth.getSession();
+    return data.session?.user.id ?? '';
+  }
+
   async listWorkspaces(): Promise<WorkspaceWithRole[]> {
-    const { data: auth } = await this.sb.auth.getUser();
     const { data, error } = await this.sb
       .from('workspace_members')
       .select('role, workspaces(*)')
-      .eq('user_id', auth.user?.id ?? '');
+      .eq('user_id', await this.userId());
     fail(error);
     return (data ?? []).map((m: any) => ({ ...m.workspaces, role: m.role }));
   }
@@ -101,25 +109,23 @@ export class SupabaseRepo implements Repo {
   }
 
   async loadSnapshot(workspaceId: ID): Promise<Snapshot> {
-    const { data: auth } = await this.sb.auth.getUser();
-    const ws = await this.sb.from('workspaces').select('*').eq('id', workspaceId).maybeSingle();
+    // 所有请求并行发出：一次往返即可拿到完整快照
+    const [uid, ws, members, ...tables] = await Promise.all([
+      this.userId(),
+      this.sb.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(),
+      this.sb.from('workspace_members').select('workspace_id, user_id, role, profiles(display_name, email)').eq('workspace_id', workspaceId),
+      ...TABLES.map((t) => this.sb.from(t).select('*').eq('workspace_id', workspaceId)),
+    ]);
     fail(ws.error);
     if (!ws.data) throw new PermissionError('你不是该工作空间的成员');
-    const members = await this.sb
-      .from('workspace_members')
-      .select('workspace_id, user_id, role, profiles(display_name, email)')
-      .eq('workspace_id', workspaceId);
     fail(members.error);
-    const tables = await Promise.all(
-      TABLES.map((t) => this.sb.from(t).select('*').eq('workspace_id', workspaceId)),
-    );
     tables.forEach((r) => fail(r.error));
     const byTable = Object.fromEntries(TABLES.map((t, i) => [t, tables[i].data ?? []]));
     const mapped = (members.data ?? []).map((m: any) => ({
       workspace_id: m.workspace_id, user_id: m.user_id, role: m.role as Role,
       display_name: m.profiles?.display_name ?? '?', email: m.profiles?.email ?? '',
     }));
-    const me = mapped.find((m) => m.user_id === auth.user?.id);
+    const me = mapped.find((m) => m.user_id === uid);
     if (!me) throw new PermissionError('你不是该工作空间的成员');
     return { workspace: ws.data, role: me.role, members: mapped, ...(byTable as any) };
   }
