@@ -271,8 +271,10 @@ export function Canvas() {
         // 由近及远：菜单 → 选择 → 看板
         if (menuRef.current) return setMenu(null);
         if (nodesRef.current.some((n) => n.selected)) {
-          // 焦点在节点上时，画布库会自行取消选中（并移开焦点）；这里再取消会被它判定为“未选中”而重新选中
-          if (!t.closest('.react-flow__node')) setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+          // 取消全部选择。焦点所在的节点交给画布库处理（它会取消该节点并移开焦点）；
+          // 若这里也取消它，画布库会判定其“未选中”而重新选中。其余选中的节点由这里取消。
+          const focused = t.closest('.react-flow__node')?.getAttribute('data-id') ?? null;
+          setNodes((nds) => nds.map((n) => (n.selected && n.id !== focused ? { ...n, selected: false } : n)));
           return;
         }
         if (s.openEventId) s.openEvent(null);

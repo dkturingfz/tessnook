@@ -465,3 +465,25 @@ test('看板拖拽：列表内排序、拖入空列表、拖动手柄调整列�
   await page.keyboard.press('Space');
   await expect.poll(state).toBe('待办[三一] 已完成[二] 进行中[]');
 });
+
+test('Esc 清空全部多选（焦点在某张卡片上时也是），不会把其他卡片误带进下一次堆叠', async ({ page }) => {
+  await signUp(page, 'S', 'esc@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '甲', 0.15, 0.2);
+  await createAt(page, '乙', 0.3, 0.4);
+  await createAt(page, '丙', 0.15, 0.45);
+  await card(page, '甲').click({ modifiers: ['Shift'] });
+  await card(page, '乙').click({ modifiers: ['Shift'] });
+  await expect(page.locator('.react-flow__node.selected')).toHaveCount(2);
+  // 拖动多选的卡片（焦点会落在被拖动的卡片上），再按 Esc
+  const b = (await card(page, '甲').boundingBox())!;
+  await dragBy(page, b.x + 40, b.y + 15, 50, 40);
+  await expect(page.locator('.react-flow__node.selected')).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.react-flow__node.selected')).toHaveCount(0);
+  await card(page, '甲').click({ modifiers: ['Shift'] });
+  await card(page, '丙').click({ modifiers: ['Shift'] });
+  await page.locator('.selection-bar').getByText('堆叠').click();
+  await expect(page.getByTestId('stack-card')).toContainText('2');
+  await expect(card(page, '乙')).toBeVisible();
+});
