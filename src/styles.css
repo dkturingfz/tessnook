@@ -289,6 +289,9 @@ button.avatar:hover { filter: brightness(1.08); }
 }
 .canvas-toolbar button { border-color: transparent; padding: 6px 9px; font-size: 13px; color: var(--text); }
 .canvas-toolbar button svg { color: var(--muted); }
+.canvas-toolbar button.primary-action { background: var(--primary); color: var(--on-primary); font-weight: 600; }
+.canvas-toolbar button.primary-action svg { color: var(--on-primary); }
+.canvas-toolbar button.primary-action:hover:not(:disabled) { background: var(--primary-hover); }
 .canvas-toolbar button.on svg { color: var(--primary); }
 .canvas-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 3px; }
 .selection-bar {
@@ -574,6 +577,7 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
 }
 @media (max-width: 760px) {
   .board-panel { position: absolute; inset: 0; width: 100% !important; min-width: 0; }
+  .board-panel .mode-switch { display: none; } /* 手机上看板总是全屏，显示模式无意义 */
   .search, .online, .role-tag, .topbar-right .icon-btn[title*="卡片"], .topbar-right .icon-btn[title="活动记录"] { display: none; }
   .topbar { gap: 4px; padding: 0 8px; }
   .ws-switch { min-width: 0; flex: 1; }

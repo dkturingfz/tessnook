@@ -72,6 +72,13 @@ export function Canvas() {
   menuRef.current = menu;
   const nodesRef = useRef<AppNode[]>([]);
   nodesRef.current = nodes;
+  /** 在当前视图中央出现新建输入框（快捷键 N 与工具栏按钮共用） */
+  const draftAtCenter = () => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (r) setDraft(rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }));
+  };
+  const draftAtCenterRef = useRef(draftAtCenter);
+  draftAtCenterRef.current = draftAtCenter;
   const busy = useRef(new Set<ID>());
   const dragVersions = useRef(new Map<ID, number>());
   const regionDrag = useRef<{ id: ID; x: number; y: number } | null>(null);
@@ -278,8 +285,7 @@ export function Canvas() {
       if (k === 'f') { rf.fitView({ padding: 0.15, duration: 300, maxZoom: 1 }); return; }
       if (k === 'n' && canEditSel(s)) {
         e.preventDefault();
-        const r = wrapRef.current?.getBoundingClientRect();
-        if (r) setDraft(rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }));
+        draftAtCenterRef.current();
       }
     };
     // 捕获阶段：先于画布库对已聚焦节点的 Esc 处理读取选中状态，保证“先取消选择、再关闭看板”
@@ -325,6 +331,9 @@ export function Canvas() {
       </ReactFlow>
 
       <div className="canvas-toolbar">
+        {editable && (
+          <button className="primary-action" title="在视图中央新建事件包（N）" onClick={draftAtCenter}><Plus size={16} />新建事件包</button>
+        )}
         {editable && (
           <button title="在视图中心新建四象限区域" onClick={() => {
             const c = rf.screenToFlowPosition({ x: window.innerWidth / 3, y: window.innerHeight / 3 });
@@ -380,7 +389,7 @@ export function Canvas() {
       {Object.keys(regions).length > 0 && activeCount === 0 && editable && (
         <div className="start-hint" data-testid="start-hint">
           <strong>开始使用：</strong>双击画布任意位置创建事件包，放在哪个象限就代表它的优先级。
-          <span className="muted">也可以按 <kbd>N</kbd> 在中央新建，按 <kbd>?</kbd> 查看全部操作。</span>
+          <span className="muted">也可以点左上角「新建事件包」或按 <kbd>N</kbd> 在中央新建，按 <kbd>?</kbd> 查看全部操作。</span>
         </div>
       )}
       {help && <ShortcutsHelp onClose={() => setHelp(false)} />}

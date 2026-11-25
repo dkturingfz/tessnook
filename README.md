@@ -6,6 +6,8 @@
 
 **在线体验**：https://tessnook.dkturingfz.workers.dev
 
+[![CI](https://github.com/dkturingfz/tessnook/actions/workflows/ci.yml/badge.svg)](https://github.com/dkturingfz/tessnook/actions/workflows/ci.yml)
+
 一款基于无限网格画布的空间化任务协作 Web 应用。用户在「重要性 × 紧急性」四象限区域中自由摆放、整理和堆叠**事件包**，点击事件包即在右侧打开 Trello 式工作看板；支持多用户共享工作空间、实时协作和事件归档。
 
 > 用空间组织注意力，用事件包组织工作，用看板推进执行。
@@ -52,6 +54,8 @@ npm run build && npx wrangler dev
 `public/_headers` 设置了安全响应头，并让带哈希的静态资源长期缓存；未命中的路径返回 `index.html`（单页应用模式）。上线后，请在 Supabase 的 Authentication → URL Configuration 中把 Site URL 设为网站地址。
 
 ## 测试
+
+每次推送到 `main` 和每个 Pull Request 都会在 GitHub Actions 上运行下面的类型检查、单元与契约测试、构建、数据库测试和端到端测试（`.github/workflows/ci.yml`）。
 
 | 命令 | 内容 |
 |---|---|
