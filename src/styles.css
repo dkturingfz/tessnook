@@ -326,6 +326,7 @@ button.avatar:hover { filter: brightness(1.08); }
   border-left: 1px solid var(--border); box-shadow: -10px 0 30px rgba(34, 49, 47, 0.07); z-index: 10;
 }
 .board-panel.mode-focus { min-width: 0; border-left: 0; }
+.board-panel.loading { width: 40%; }
 .resize-handle { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 2; }
 .resize-handle:hover { background: color-mix(in srgb, var(--primary) 25%, transparent); }
 .board-head {

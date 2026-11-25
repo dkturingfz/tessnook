@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { ReactFlowProvider } from '@xyflow/react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useStore } from './store/store';
-import { Canvas } from './canvas/Canvas';
-import { BoardPanel } from './board/BoardPanel';
-import { TopBar, type Dialog } from './components/TopBar';
-import { ActivityDialog, ArchiveCenter, MembersDialog } from './components/Dialogs';
 import { AuthPage, WorkspacePicker } from './components/AuthPage';
+import { Toasts } from './components/Toasts';
+
+// 工作区（画布、看板）按需加载：登录页只下载登录所需的代码
+const WorkspaceView = lazy(() => import('./WorkspaceView'));
 
 const INVITE_KEY = 'tessnook:pending-invite';
 
@@ -15,9 +14,6 @@ export function App() {
   const workspace = useStore((s) => s.workspace);
   const workspaces = useStore((s) => s.workspaces);
   const loading = useStore((s) => s.loading);
-  const openEventId = useStore((s) => s.openEventId);
-  const panelMode = useStore((s) => s.panelMode);
-  const [dialog, setDialog] = useState<Dialog>(null);
 
   useEffect(() => {
     // 邀请链接 ?invite=xxx：先暂存，登录后再接受
@@ -50,32 +46,8 @@ export function App() {
   if (!workspace) return <>{loading ? <div className="splash">加载中…</div> : <WorkspacePicker />}<Toasts /></>;
 
   return (
-    <ReactFlowProvider>
-      <div className="app">
-        <TopBar onDialog={setDialog} />
-        <main className={`main ${openEventId ? 'panel-open' : ''} panel-${panelMode}`}>
-          <Canvas />
-          {openEventId && <BoardPanel />}
-        </main>
-        {dialog === 'archive' && <ArchiveCenter onClose={() => setDialog(null)} />}
-        {dialog === 'members' && <MembersDialog onClose={() => setDialog(null)} />}
-        {dialog === 'activity' && <ActivityDialog onClose={() => setDialog(null)} />}
-        <Toasts />
-      </div>
-    </ReactFlowProvider>
-  );
-}
-
-function Toasts() {
-  const toasts = useStore((s) => s.toasts);
-  const dismiss = useStore((s) => s.dismissToast);
-  const busy = useStore((s) => s.busy);
-  return (
-    <div className="toasts" aria-live="polite">
-      {busy && <div className="toast busy" data-testid="busy">{busy}</div>}
-      {toasts.map((t) => (
-        <div key={t.id} className={`toast ${t.kind}`} onClick={() => dismiss(t.id)}>{t.text}</div>
-      ))}
-    </div>
+    <Suspense fallback={<div className="splash">加载中…</div>}>
+      <WorkspaceView />
+    </Suspense>
   );
 }
