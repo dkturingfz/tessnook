@@ -127,6 +127,28 @@ export function Kanban({ eventId, readOnly }: { eventId: ID; readOnly: boolean }
     moveTask(tid, container, positionBetween(pos(order[i - 1]), pos(order[i + 1])));
   };
 
+  // 读屏播报（拖拽库默认是英文）：拿起、经过、放下、取消都用中文说明“哪一项、到了哪里”
+  const nameOf = (dndId: string | number | undefined) => {
+    if (dndId === undefined) return '';
+    return isList(dndId) ? `列表「${allLists[raw(dndId)]?.title ?? ''}」` : `任务「${allTasks[raw(dndId)]?.title ?? ''}」`;
+  };
+  const whereOf = (dndId: string | number | undefined) => {
+    if (dndId === undefined) return '';
+    const lid = containerOf(dndId);
+    return lid ? `列表「${allLists[lid]?.title ?? ''}」` : '';
+  };
+  const accessibility = {
+    screenReaderInstructions: { draggable: '按空格键拿起，用方向键移动，再按空格键放下；按 Esc 取消。' },
+    announcements: {
+      onDragStart: ({ active }: { active: { id: string | number } }) => `已拿起${nameOf(active.id)}`,
+      onDragOver: ({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) =>
+        over ? `${nameOf(active.id)}移到${whereOf(over.id)}${isList(active.id) ? '的位置' : ''}` : `${nameOf(active.id)}不在可放置的位置`,
+      onDragEnd: ({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) =>
+        over ? `已放下${nameOf(active.id)}` : `已放下${nameOf(active.id)}，位置未改变`,
+      onDragCancel: ({ active }: { active: { id: string | number } }) => `已取消移动${nameOf(active.id)}`,
+    },
+  };
+
   const activeTask = active && !isList(active) ? allTasks[raw(active)] : null;
   const activeList = active && isList(active) ? allLists[raw(active)] : null;
 
@@ -134,6 +156,7 @@ export function Kanban({ eventId, readOnly }: { eventId: ID; readOnly: boolean }
     <div className="kanban">
       <DndContext
         sensors={sensors}
+        accessibility={accessibility}
         collisionDetection={closestCorners}
         onDragStart={onDragStart}
         onDragOver={onDragOver}

@@ -469,13 +469,19 @@ test('看板拖拽：列表内排序、拖入空列表、拖动手柄调整列�
   await dragTo(await center(lists.nth(2).locator('.grip')), await center(lists.nth(0).locator('.grip'), -60, 40));
   await expect.poll(state).toBe('已完成[二] 待办[三一] 进行中[]');
 
-  // 键盘拖动：拿起后拖拽库需要先测量各列位置，按键之间留出与真实操作相当的间隔
+  // 键盘拖动：以读屏播报（中文）作为每一步完成的信号，而不是固定等待时间（负载高时不稳定）
+  const live = page.locator('[id^="DndLiveRegion"]');
   await lists.nth(0).locator('.grip').focus();
   await page.keyboard.press('Space');
-  await page.waitForTimeout(150);
+  await expect(live).toHaveText(/^(已拿起列表「已完成」|列表「已完成」移到列表「已完成」的位置)$/);
+  // 拿起后拖拽库在之后的动画帧里测量各列位置；测量完成前的方向键会被忽略（负载高时会发生）
+  const frames = () => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+  await frames();
   await page.keyboard.press('ArrowRight');
-  await page.waitForTimeout(150);
+  await expect(live).toHaveText('列表「已完成」移到列表「待办」的位置');
+  await frames();
   await page.keyboard.press('Space');
+  await expect(live).toHaveText('已放下列表「已完成」');
   await expect.poll(state).toBe('待办[三一] 已完成[二] 进行中[]');
 });
 
