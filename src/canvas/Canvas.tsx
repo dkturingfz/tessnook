@@ -33,7 +33,7 @@ const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRigh
 const KEY_STEP = 16;
 
 /** 画布库内置的读屏与控件文字（默认英文），按本应用的实际操作改写为中文 */
-const NODE_HELP = '按回车或空格选中；选中后用方向键移动（按住 Shift 移动更多），移到另一个象限会改变优先级；按 Esc 取消选择。';
+const NODE_HELP = '按回车或空格选中；选中后用方向键移动（按住 Shift 移动更多），移到另一个象限会改变优先级；按 Shift+F10 打开操作菜单；按 Esc 取消选择。';
 const ARIA_LABELS = {
   'node.a11yDescription.default': NODE_HELP,
   'node.a11yDescription.keyboardDisabled': NODE_HELP,
@@ -49,10 +49,11 @@ const ARIA_LABELS = {
 
 const nodeTypes: NodeTypes = { region: RegionNode, event: EventNode, stack: StackNode, draft: DraftNode } as any;
 
+/** viaKeyboard：由键盘（菜单键 / Shift+F10）打开，打开时聚焦第一项，关闭后焦点回到卡片 */
 type Menu =
-  | { kind: 'event'; id: ID; x: number; y: number }
-  | { kind: 'stack'; id: ID; x: number; y: number }
-  | { kind: 'pane'; x: number; y: number; flow: { x: number; y: number } };
+  | { kind: 'event'; id: ID; x: number; y: number; viaKeyboard?: boolean }
+  | { kind: 'stack'; id: ID; x: number; y: number; viaKeyboard?: boolean }
+  | { kind: 'pane'; x: number; y: number; flow: { x: number; y: number }; viaKeyboard?: boolean };
 
 const VIEW_PREFS = 'tessnook:canvas-prefs';
 function loadView() {
@@ -309,6 +310,18 @@ export function Canvas() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && t.closest('.react-flow__node')) {
+        // 键盘打开卡片的操作菜单（等同于右键）
+        const id = t.closest('.react-flow__node')!.getAttribute('data-id');
+        const node = nodesRef.current.find((n) => n.id === id);
+        if (node && (node.type === 'event' || node.type === 'stack')) {
+          e.preventDefault();
+          e.stopPropagation(); // 不再传给卡片：画布库会把焦点拉回卡片
+          const r = t.closest('.react-flow__node')!.getBoundingClientRect();
+          setMenu({ kind: node.type, id: node.id, x: Math.round(r.left + 24), y: Math.round(r.top + 28), viaKeyboard: true });
+        }
+        return;
+      }
       if (ARROWS[e.key] && (t === document.body || t.closest('.react-flow'))) {
         // 键盘移动卡片：选中的卡片（没有选中时取焦点所在的卡片）每次移动一格，Shift 五格。
         // 与拖动结束使用同样的保存逻辑：重新判定所在区域与象限。
@@ -462,8 +475,36 @@ function ContextMenu({ menu, onClose, onCreateAt }: { menu: Menu; onClose(): voi
   const s = useStore();
   const editable = canEditSel(s);
   const item = (label: string, fn: () => void, danger = false) => (
-    <button className={danger ? 'danger' : ''} onClick={() => { fn(); onClose(); }}>{label}</button>
+    <button role="menuitem" className={danger ? 'danger' : ''} onClick={() => { fn(); onClose(); }}>{label}</button>
   );
+  const ref = useRef<HTMLDivElement>(null);
+  // 键盘打开时聚焦第一项；关闭后焦点回到对应的卡片（若仍在页面上）
+  useEffect(() => {
+    const el = ref.current;
+    if (menu.viaKeyboard) el?.querySelector<HTMLElement>('[role=menuitem]')?.focus();
+    return () => {
+      if (!menu.viaKeyboard || menu.kind === 'pane') return;
+      const id = menu.id;
+      requestAnimationFrame(() => {
+        if (el?.isConnected) return; // 菜单仍在（开发模式下的模拟卸载），不是真正关闭
+        const a = document.activeElement;
+        if (a && a !== document.body) return; // 焦点已有去处（如打开了看板或确认框）
+        document.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"]`)?.focus();
+      });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 上下方向键 / Home / End 在菜单项之间移动
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role=menuitem]') ?? [])];
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    const go = (j: number) => { e.preventDefault(); e.stopPropagation(); items[(j + items.length) % items.length].focus(); };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i < 0 ? items.length - 1 : i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(items.length - 1);
+    else if (e.key === 'Tab') { e.preventDefault(); onClose(); }
+  };
   let body: React.ReactNode = null;
 
   if (menu.kind === 'event') {
@@ -505,7 +546,7 @@ function ContextMenu({ menu, onClose, onCreateAt }: { menu: Menu; onClose(): voi
     );
   }
   return (
-    <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseLeave={onClose}>
+    <div ref={ref} className="context-menu" role="menu" aria-label="操作菜单" style={{ left: menu.x, top: menu.y }} onMouseLeave={onClose} onKeyDown={onKeyDown}>
       {body}
     </div>
   );

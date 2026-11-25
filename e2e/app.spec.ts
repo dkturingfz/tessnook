@@ -867,3 +867,30 @@ test('下拉菜单：Esc 关闭并把焦点还给按钮（不连带关闭看板�
   await expect(user).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.menu-anchor .dropdown')).toHaveCount(0);
 });
+
+test('键盘打开卡片的操作菜单：Shift+F10 打开并聚焦第一项，方向键移动，回车执行，Esc 关闭后焦点回到卡片', async ({ page }) => {
+  await signUp(page, 'C', 'ctxmenu@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '写周报', 0.25, 0.3);
+  const node = page.locator('.react-flow__node-event').first();
+  await node.focus();
+  await page.keyboard.press('Shift+F10');
+  const menu = page.getByRole('menu', { name: '操作菜单' });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  await expect(menu.getByRole('menuitem', { name: '打开看板' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitem', { name: '标记完成' })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp'); // 循环到最后一项
+  await expect(menu.getByRole('menuitem').last()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(node).toBeFocused();
+  // 再次打开，选择“标记完成”并执行
+  await page.keyboard.press('Shift+F10');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await db(page)).events[0].status).toBe('completed');
+  await expect(menu).toHaveCount(0);
+});
