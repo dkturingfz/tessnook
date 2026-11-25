@@ -569,6 +569,9 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
 .toast { background: var(--ink); color: var(--on-ink); padding: 11px 15px; border-radius: 12px; box-shadow: var(--shadow-lg); cursor: pointer; line-height: 1.45; }
 .toast.error { background: var(--danger); color: #fff; }
 .toast.success { background: var(--ok); color: #fff; }
+.update-notice { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 13px; background: var(--primary-soft); color: var(--text); border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 19; }
+.update-notice .link { padding: 2px 4px; font-weight: 600; }
+.update-notice .icon-btn { margin-left: auto; }
 .conn-banner { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 13px; border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 19; }
 .conn-banner.offline { background: var(--warn-soft); color: var(--warn); font-weight: 500; }
 .conn-banner.reconnecting { background: var(--surface-2); color: var(--muted); }

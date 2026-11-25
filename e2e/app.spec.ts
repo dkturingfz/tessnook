@@ -396,3 +396,24 @@ test('错误兜底：看板代码加载失败时只影响看板；工作区加�
   await expect(p2.getByTestId('crash-screen')).toContainText('Tessnook 已更新');
   await expect(p2.getByRole('button', { name: '重新加载' })).toBeVisible();
 });
+
+test('新版本提示：线上入口脚本变化后，回到页面时提示刷新（生产构建）', async ({ page }) => {
+  const PROD = 'http://localhost:4175';
+  await signUp(page, 'U', 'upd@x.com', PROD);
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.locator('.region')).toBeVisible();
+  // 版本未变化：回到前台不提示
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('update-notice')).toHaveCount(0);
+  // 模拟发布了新版本：首页引用的入口脚本换了哈希
+  await page.route(`${PROD}/`, async (route) => {
+    const res = await route.fetch();
+    const html = (await res.text()).replace(/\/assets\/index-[\w-]+\.js/, '/assets/index-NEWVERSION.js');
+    await route.fulfill({ response: res, body: html });
+  });
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByTestId('update-notice')).toContainText('有新版本可用');
+  await page.getByRole('button', { name: '稍后' }).click();
+  await expect(page.getByTestId('update-notice')).toHaveCount(0);
+});
