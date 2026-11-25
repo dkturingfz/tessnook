@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EventPkg, ID, Quadrant, Snapshot } from '../../src/domain/types';
 import { fanOut, scaleWithRegion } from '../../src/domain/layout';
-import { ConflictError, PermissionError, type Repo } from '../../src/data/repo';
+import { AuthError, ConflictError, PermissionError, type Repo } from '../../src/data/repo';
 import { exportBackup, importBackup } from '../../src/store/backup';
 import { validateBackup } from '../../src/domain/backup';
 
@@ -88,6 +88,8 @@ export function defineRepoContract(h: ContractHarness) {
           expect(await repo.currentUser()).toMatchObject({ id: alice.id, display_name: 'alice' });
           await repo.signOut();
           expect(await repo.currentUser()).toBeNull();
+          // 未登录时，需要登录的操作抛出 AuthError（界面据此回到登录页）
+          await expect(repo.listWorkspaces()).rejects.toBeInstanceOf(AuthError);
         } finally {
           if (h.dispose) h.dispose(repo);
         }

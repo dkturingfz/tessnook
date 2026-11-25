@@ -15,6 +15,7 @@ import {
   type WorkspaceWithRole,
 } from '../../domain/types';
 import {
+  AuthError,
   ConflictError,
   PermissionError,
   type CreateEventInput,
@@ -29,6 +30,8 @@ function fail(error: { code?: string; message: string } | null): never | void {
   if (!error) return;
   if (error.code === 'P0409' || error.message.includes('VERSION_CONFLICT')) throw new ConflictError();
   if (error.code === '42501') throw new PermissionError();
+  // 令牌过期 / 无效（PostgREST 返回 PGRST301/PGRST303，或 JWT 相关错误）→ 需要重新登录
+  if (error.code === 'PGRST301' || error.code === 'PGRST303' || /jwt (expired|malformed)|invalid jwt|auth session missing/i.test(error.message)) throw new AuthError();
   throw new Error(error.message);
 }
 
@@ -85,8 +88,24 @@ export class SupabaseRepo implements Repo {
     return this.withProfile(data.user);
   }
 
+  /** 本客户端主动退出时为 true：此时的 SIGNED_OUT 事件不应被当作“登录已失效” */
+  private signingOut = false;
+
   async signOut() {
-    await this.sb.auth.signOut();
+    this.signingOut = true;
+    try {
+      await this.sb.auth.signOut();
+    } finally {
+      this.signingOut = false;
+    }
+  }
+
+  onSignedOut(handler: () => void) {
+    // 令牌刷新失败、在其他标签页退出登录等情况，Supabase 会发出 SIGNED_OUT
+    const { data } = this.sb.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' && !this.signingOut) handler();
+    });
+    return () => data.subscription.unsubscribe();
   }
 
   // ———————————————————— 工作空间 ————————————————————
@@ -97,7 +116,9 @@ export class SupabaseRepo implements Repo {
    */
   private async userId(): Promise<ID> {
     const { data } = await this.sb.auth.getSession();
-    return data.session?.user.id ?? '';
+    const id = data.session?.user.id;
+    if (!id) throw new AuthError(); // 未登录或会话已失效
+    return id;
   }
 
   async listWorkspaces(): Promise<WorkspaceWithRole[]> {

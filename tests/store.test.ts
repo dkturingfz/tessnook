@@ -2,6 +2,7 @@
 // 使用浏览器内后端（LocalRepo），不依赖网络。
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LocalRepo, type SessionStore } from '../src/data/local/localRepo';
+import { AuthError } from '../src/data/repo';
 import { configureBackend, useStore } from '../src/store/store';
 
 class Mem implements SessionStore {
@@ -225,5 +226,23 @@ describe('store', () => {
     expect(S().events[id]).toMatchObject({ x: e0.x, y: e0.y, quadrant: e0.quadrant });
     expect(S().layoutHistory).toHaveLength(historyBefore);
     expect(lastToast()).toContain('调整区域尺寸');
+  });
+
+  // 放在最后：会使当前会话退出登录
+  it('登录已失效（如令牌过期）：回到登录页并提示重新登录，而不是显示一串报错', async () => {
+    const id = await newEvent('Z');
+    const orig = repo.update.bind(repo);
+    repo.update = (async () => { throw new AuthError(); }) as typeof orig;
+    const before = S().toasts.filter((t) => t.text.includes('保存失败')).length;
+    try {
+      await S().updateRow('events', id, { title: '过期后改' });
+      expect(S().user).toBeNull();
+      expect(S().workspace).toBeNull();
+      expect(lastToast()).toBe('登录已过期，请重新登录');
+      expect(S().toasts.filter((t) => t.text.includes('保存失败'))).toHaveLength(before);
+      expect(await repo.currentUser()).toBeNull(); // 本地残留会话已清除
+    } finally {
+      repo.update = orig;
+    }
   });
 });

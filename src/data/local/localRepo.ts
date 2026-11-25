@@ -21,6 +21,7 @@ import { fanOut } from '../../domain/layout';
 import { can, validateStack, type Action } from '../../domain/rules';
 import { validateAxisSetting } from '../../domain/axes';
 import {
+  AuthError,
   ConflictError,
   PermissionError,
   type CreateEventInput,
@@ -111,7 +112,7 @@ export class LocalRepo implements Repo {
 
   private uid(): ID {
     const id = this.session.getItem(SESSION_KEY);
-    if (!id) throw new PermissionError('请先登录');
+    if (!id) throw new AuthError();
     return id;
   }
 

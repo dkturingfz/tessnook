@@ -26,7 +26,7 @@ import { backupFileName, validateBackup, type Backup } from '../domain/backup';
 import { exportBackup, importBackup } from './backup';
 import { DEFAULT_LEAD_DAYS, type LeadDays } from '../domain/deadlines';
 // 只依赖后端契约（接口与错误类型），不依赖任何具体实现
-import { ConflictError, PermissionError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
+import { AuthError, ConflictError, PermissionError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
 
 type Rows<T> = Record<ID, T>;
 export type PanelMode = 'standard' | 'wide' | 'focus';
@@ -190,6 +190,7 @@ export interface AppState extends Data {
 
 let repo: Repo | null = null;
 let networkWatched = false;
+let authWatched = false;
 
 /** 监听浏览器网络状态：断网时暂停编辑，恢复后以服务端数据校准 */
 function watchNetwork() {
@@ -260,6 +261,10 @@ export const useStore = create<AppState>((set, get) => {
         get().toast(`${label}未保存：网络已断开`, 'error');
         return null;
       }
+      if (e instanceof AuthError) {
+        await sessionExpired();
+        return null;
+      }
       if (e instanceof ConflictError) {
         get().toast(`${label}失败：该内容刚被其他成员修改，已刷新为最新版本，请重试`, 'error');
       } else {
@@ -324,6 +329,16 @@ export const useStore = create<AppState>((set, get) => {
   }
 
   /** 离开当前工作空间、回到空间选择页（删除、退出、被移出时共用） */
+  /** 登录已失效：清空本地状态回到登录页并说明原因（只处理一次） */
+  async function sessionExpired() {
+    if (!get().user) return;
+    sub?.close();
+    sub = null;
+    set({ user: null, workspace: null, workspaces: [], role: null, ...emptyData(), openEventId: null, layoutHistory: [] });
+    get().toast('登录已过期，请重新登录', 'error');
+    await backend().signOut().catch(() => undefined); // 清除本地残留的会话
+  }
+
   async function closeWorkspace(message?: string) {
     sub?.close();
     sub = null;
@@ -407,6 +422,11 @@ export const useStore = create<AppState>((set, get) => {
 
     async init() {
       watchNetwork();
+      // 登录状态在应用之外失效（令牌刷新失败、在其他标签页退出）时回到登录页
+      if (!authWatched) {
+        authWatched = true;
+        backend().onSignedOut?.(() => void sessionExpired());
+      }
       const user = await backend().currentUser().catch(() => null);
       set({ user, authChecked: true });
       if (user) await get().refreshWorkspaces();
@@ -455,7 +475,8 @@ export const useStore = create<AppState>((set, get) => {
         savePrefs({ lastWorkspace: id });
         subscribeWorkspace(id);
       } catch (e) {
-        if (!opts?.quiet) get().toast((e as Error).message, 'error');
+        if (e instanceof AuthError) await sessionExpired();
+        else if (!opts?.quiet) get().toast((e as Error).message, 'error');
       } finally {
         set({ loading: false });
       }
@@ -595,7 +616,8 @@ export const useStore = create<AppState>((set, get) => {
         }));
       } catch (e) {
         // 被移出该空间（或空间已被删除）：回到空间选择页并说明原因
-        if (e instanceof PermissionError) await closeWorkspace(`你已不再是「${ws.name}」的成员`);
+        if (e instanceof AuthError) await sessionExpired();
+        else if (e instanceof PermissionError) await closeWorkspace(`你已不再是「${ws.name}」的成员`);
         else get().toast(`同步失败：${(e as Error).message}`, 'error');
       }
     },

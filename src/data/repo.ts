@@ -38,6 +38,13 @@ export class ConflictError extends Error {
     this.name = 'ConflictError';
   }
 }
+/** 登录已失效（令牌过期且无法刷新、账户被删除、在其他标签页退出等），需要重新登录 */
+export class AuthError extends Error {
+  constructor(message = '登录已过期，请重新登录') {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
 export class PermissionError extends Error {
   constructor(message = '没有执行该操作的权限') {
     super(message);
@@ -61,6 +68,11 @@ export interface AuthApi {
   signIn(email: string, password: string): Promise<User>;
   signUp(email: string, password: string, displayName: string): Promise<User>;
   signOut(): Promise<void>;
+  /**
+   * 登录状态在应用之外失效时通知（例如令牌刷新失败、在其他标签页退出登录）。
+   * 可选：不支持的实现可以不提供。返回取消订阅函数。
+   */
+  onSignedOut?(handler: () => void): () => void;
 }
 
 export interface WorkspaceApi {
