@@ -10,9 +10,13 @@ export function DraftNode({ data }: NodeProps<Node<DraftNodeData, 'draft'>>) {
   // 只结束一次：回车提交后、输入框卸载前，焦点可能被下一次双击移走而触发失焦，
   // 失焦又会提交一次，导致同一个事件包被创建两次。
   const done = useRef(false);
+  // 结束后立即隐藏（与清除草稿在同一次渲染中生效）：节点要到下一次渲染才从画布移除，
+  // 这几毫秒里它不应再接收输入
+  const [finished, setFinished] = useState(false);
   const finish = (submit: boolean) => {
     if (done.current) return;
     done.current = true;
+    setFinished(true);
     const t = title.trim();
     if (submit && t) data.onSubmit(t);
     else data.onCancel();
@@ -35,6 +39,7 @@ export function DraftNode({ data }: NodeProps<Node<DraftNodeData, 'draft'>>) {
   // 以双击点（卡片顶部往下 20px 的中心）为原点放大，输入框仍出现在点击位置。
   const zoom = useFlowStore((s) => s.transform[2]);
   const k = Math.max(1, 1 / zoom);
+  if (finished) return null;
   return (
     <div
       className="event-card draft nodrag"
