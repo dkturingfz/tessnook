@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -28,6 +28,7 @@ import { dueState, formatDue } from '../components/format';
 import { TaskDetail } from './TaskDetail';
 import { Avatar } from '../components/Avatar';
 import { askConfirm } from '../components/Ask';
+import { usePopover } from '../components/usePopover';
 
 const L = (id: ID) => `l:${id}`;
 const T = (id: ID) => `t:${id}`;
@@ -200,6 +201,8 @@ function ListColumn({ list, taskIds, readOnly, onOpenTask }: {
   const [title, setTitle] = useState<string | null>(null);
   const [newTask, setNewTask] = useState('');
   const [menu, setMenu] = useState(false);
+  const menuAnchor = useRef<HTMLDivElement>(null);
+  usePopover(menuAnchor, menu, () => setMenu(false));
 
   const commitTitle = () => {
     if (title !== null && title.trim() && title.trim() !== list.title) updateRow('lists', list.id, { title: title.trim() });
@@ -223,8 +226,8 @@ function ListColumn({ list, taskIds, readOnly, onOpenTask }: {
         )}
         <span className="list-count">{taskIds.length}</span>
         {!readOnly && (
-          <div className="menu-anchor">
-            <button className="icon-btn" onClick={() => setMenu(!menu)} aria-label="列表操作"><MoreHorizontal size={14} /></button>
+          <div className="menu-anchor" ref={menuAnchor}>
+            <button className="icon-btn" onClick={() => setMenu(!menu)} aria-label="列表操作" aria-haspopup="true" aria-expanded={menu}><MoreHorizontal size={14} /></button>
             {menu && (
               <div className="dropdown" onMouseLeave={() => setMenu(false)}>
                 <button className="danger" onClick={async () => {

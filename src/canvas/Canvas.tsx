@@ -294,6 +294,8 @@ export function Canvas() {
         return;
       }
       if (e.key === 'Escape') {
+        // 顶栏等处的下拉菜单打开时，Esc 只关闭菜单（由菜单自己处理）
+        if (document.querySelector('.menu-anchor .dropdown')) return;
         // 由近及远：菜单 → 选择 → 看板
         if (menuRef.current) return setMenu(null);
         if (nodesRef.current.some((n) => n.selected)) {

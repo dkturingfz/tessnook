@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { usePopover } from './usePopover';
 import { AlarmClock, ArrowRight, Bell, BellOff } from 'lucide-react';
 import { LEAD_DAY_OPTIONS, describeDue, type DeadlineAlert } from '../domain/deadlines';
 import { quadrantName } from '../domain/axes';
@@ -17,16 +18,8 @@ export function AlertsMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // 点击菜单外任意位置或按 Esc 关闭
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    // 捕获阶段监听：画布会阻止鼠标事件冒泡，冒泡阶段收不到画布上的点击
-    document.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('pointerdown', onDown, true); window.removeEventListener('keydown', onKey); };
-  }, [open]);
+  // 点击菜单外、按 Esc、焦点移出时关闭
+  usePopover(ref, open, () => setOpen(false));
 
   const list = [...alerts.values()].sort((a, b) => a.daysLeft - b.daysLeft);
   const overdue = list.filter((a) => a.kind === 'overdue');
@@ -58,7 +51,7 @@ export function AlertsMenu() {
   return (
     <div className="menu-anchor" ref={ref}>
       <button className={`icon-btn bell ${list.length ? 'has-alerts' : ''}`} title="截止日期提醒" aria-label={`截止日期提醒 ${list.length} 条`}
-        onClick={() => setOpen(!open)} data-testid="alerts-bell">
+        onClick={() => setOpen(!open)} data-testid="alerts-bell" aria-haspopup="true" aria-expanded={open}>
         <Bell size={18} />
         {list.length > 0 && <span className={`bell-count ${overdue.length ? 'overdue' : ''}`}>{list.length > 99 ? '99+' : list.length}</span>}
       </button>

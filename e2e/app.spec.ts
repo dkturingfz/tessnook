@@ -837,3 +837,33 @@ test('弹窗焦点：Tab 只在弹窗内循环（叠放时只在最上层），�
   await page.keyboard.press('Escape');
   await expect(del).toBeFocused();
 });
+
+test('下拉菜单：Esc 关闭并把焦点还给按钮（不连带关闭看板）、点击别处关闭、Tab 移出时关闭；按钮标明展开状态', async ({ page }) => {
+  await signUp(page, 'M', 'menus@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '写周报', 0.25, 0.3);
+  await card(page, '写周报').click(); // 打开看板：Esc 只应关闭菜单，不应关闭看板
+  await expect(page.locator('.board-panel')).toBeVisible();
+  for (const btn of [page.getByTestId('ws-switch'), page.getByRole('button', { name: /账户菜单/ }), page.getByTestId('alerts-bell')]) {
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    await expect(btn).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    await expect(btn).toBeFocused();
+    await expect(page.locator('.board-panel')).toBeVisible();
+    // 点击别处关闭
+    await btn.click();
+    await expect(btn).toHaveAttribute('aria-expanded', 'true');
+    await page.mouse.click(700, 850);
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+  }
+  // Tab 把焦点移出用户菜单时关闭
+  const user = page.getByRole('button', { name: /账户菜单/ });
+  await user.focus();
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 10 && (await user.getAttribute('aria-expanded')) === 'true'; i++) await page.keyboard.press('Tab');
+  await expect(user).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.menu-anchor .dropdown')).toHaveCount(0);
+});

@@ -9,6 +9,7 @@ import { Avatar } from './Avatar';
 import { AlertsMenu } from './AlertsMenu';
 import { ExportBackupButton, ImportBackupButton } from './BackupButtons';
 import { askText } from './Ask';
+import { usePopover } from './usePopover';
 
 export type Dialog = 'archive' | 'members' | 'activity' | null;
 
@@ -25,6 +26,10 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
   const s = useStore.getState();
   const [wsMenu, setWsMenu] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const wsAnchor = useRef<HTMLDivElement>(null);
+  const userAnchor = useRef<HTMLDivElement>(null);
+  usePopover(wsAnchor, wsMenu, () => setWsMenu(false));
+  usePopover(userAnchor, userMenu, () => setUserMenu(false));
 
   // 同一用户可能开多个标签页，按用户去重；自己的头像已在右上角，不重复显示
   const online = useMemo(() => {
@@ -34,8 +39,8 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
 
   return (
     <header className="topbar">
-      <div className="menu-anchor">
-        <button className="ws-switch" onClick={() => setWsMenu(!wsMenu)} data-testid="ws-switch">
+      <div className="menu-anchor" ref={wsAnchor}>
+        <button className="ws-switch" onClick={() => setWsMenu(!wsMenu)} data-testid="ws-switch" aria-haspopup="true" aria-expanded={wsMenu}>
           <img className="logo" src="/logo.svg" alt="" />
           <strong>{workspace.name}</strong>
           <span className="role-tag">{roleName(role)}</span>
@@ -97,8 +102,8 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
         <button className="icon-btn" title="活动记录" onClick={() => onDialog('activity')}><History size={18} /></button>
         <button className="icon-btn" title="归档中心" onClick={() => onDialog('archive')} data-testid="open-archive"><Archive size={18} /></button>
         <button className="icon-btn" title="成员与邀请" onClick={() => onDialog('members')}><Users size={18} /></button>
-        <div className="menu-anchor">
-          <button className="avatar md me" style={{ background: avatarColor(user.id) }} onClick={() => setUserMenu(!userMenu)} title={user.email} aria-label={`${initials(user.display_name)} 账户菜单`}>{initials(user.display_name)}</button>
+        <div className="menu-anchor" ref={userAnchor}>
+          <button className="avatar md me" style={{ background: avatarColor(user.id) }} onClick={() => setUserMenu(!userMenu)} aria-haspopup="true" aria-expanded={userMenu} title={user.email} aria-label={`${initials(user.display_name)} 账户菜单`}>{initials(user.display_name)}</button>
           {userMenu && (
             <div className="dropdown right" onMouseLeave={() => setUserMenu(false)}>
               <div className="menu-note">{user.display_name}<br /><span className="muted">{user.email}</span></div>
