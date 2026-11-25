@@ -639,7 +639,7 @@ export const useStore = create<AppState>((set, get) => {
       const id = toastSeq++;
       set((s) => ({ toasts: [...s.toasts, { id, kind, text, action }] }));
       // 带操作的提示多停留一会儿，留出点击时间
-      setTimeout(() => get().dismissToast(id), kind === 'error' ? 6000 : action ? 6000 : 3000);
+      setTimeout(() => get().dismissToast(id), kind === 'error' && action ? 10000 : kind === 'error' || action ? 6000 : 3000);
     },
     dismissToast(id) {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
@@ -673,9 +673,31 @@ export const useStore = create<AppState>((set, get) => {
       patchLocal(table, id, patch);
       await mutate('保存', async () => {
         const latest = (get()[table] as Rows<any>)[id];
-        const row = await backend().update(table, id, patch, latest.version);
-        get().apply({ upserts: [{ table, row }], deletes: [] });
-        return row;
+        try {
+          const row = await backend().update(table, id, patch, latest.version);
+          get().apply({ upserts: [{ table, row }], deletes: [] });
+          return row;
+        } catch (e) {
+          if (!(e instanceof ConflictError)) throw e;
+          // 版本冲突：取回最新数据后按字段判断。对方改的是别的字段 → 在最新版本上重新保存我的修改（自动合并）；
+          // 改的是同一字段且内容不同 → 保留对方的版本，提示里提供“用我的内容覆盖”，而不是让我的输入直接丢失
+          await get().resync();
+          const fresh = (get()[table] as Rows<any>)[id];
+          if (!fresh) throw e; // 已被删除
+          const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+          const clash = Object.keys(patch).filter((k) => !same(fresh[k], cur[k]) && !same(fresh[k], (patch as any)[k]));
+          if (clash.length) {
+            get().toast('保存失败：该内容刚被其他成员修改，已显示对方的版本', 'error', {
+              label: '用我的内容覆盖',
+              run: () => get().updateRow(table, id, patch),
+            });
+            return null;
+          }
+          patchLocal(table, id, patch);
+          const row = await backend().update(table, id, patch, fresh.version);
+          get().apply({ upserts: [{ table, row }], deletes: [] });
+          return row;
+        }
       });
     },
 

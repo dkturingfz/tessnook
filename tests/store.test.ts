@@ -71,6 +71,32 @@ describe('store', () => {
     expect(S().events[id].title).toBe('别人改的');
   });
 
+  it('并发修改不同字段：自动合并，双方的修改都保留，不提示冲突', async () => {
+    const id = await newEvent('D2');
+    const row = (await other.loadSnapshot(S().workspace!.id)).events.find((e) => e.id === id)!;
+    await other.update('events', id, { title: '别人改的标题' }, row.version);
+    const n = S().toasts.filter((t) => t.kind === 'error').length;
+    await S().updateRow('events', id, { description: '我写的描述' });
+    expect(S().toasts.filter((t) => t.kind === 'error')).toHaveLength(n);
+    expect(S().events[id]).toMatchObject({ title: '别人改的标题', description: '我写的描述' });
+    const saved = (await other.loadSnapshot(S().workspace!.id)).events.find((e) => e.id === id)!;
+    expect(saved).toMatchObject({ title: '别人改的标题', description: '我写的描述' });
+  });
+
+  it('并发修改同一字段：显示对方的版本，提示中可以一键用我的内容覆盖', async () => {
+    const id = await newEvent('D3');
+    const row = (await other.loadSnapshot(S().workspace!.id)).events.find((e) => e.id === id)!;
+    await other.update('events', id, { title: '别人的标题' }, row.version);
+    await S().updateRow('events', id, { title: '我的标题' });
+    const t = S().toasts[S().toasts.length - 1];
+    expect(t.text).toContain('刚被其他成员修改');
+    expect(S().events[id].title).toBe('别人的标题');
+    expect(t.action?.label).toBe('用我的内容覆盖');
+    await t.action!.run();
+    expect(S().events[id].title).toBe('我的标题');
+    expect((await other.loadSnapshot(S().workspace!.id)).events.find((e) => e.id === id)!.title).toBe('我的标题');
+  });
+
   it('断网时修改被拦下，且本地不残留未保存的修改', async () => {
     const id = await newEvent('E');
     const before = S().events[id];
