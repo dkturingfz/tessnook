@@ -544,6 +544,10 @@ test('手机宽度：不出现横向滚动；画布缩小时新建输入框仍�
   await page.getByRole('button', { name: '创建' }).click();
   await expect(page.locator('.region')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  // 触屏上不提键盘快捷键
+  await expect(page.locator('.only-coarse', { hasText: '双指可缩放' })).toBeVisible();
+  await expect(page.locator('.only-fine', { hasText: '查看全部操作' })).toBeHidden();
+  await expect(page.getByRole('button', { name: '快捷键与操作说明' })).toBeHidden();
   await page.getByRole('button', { name: /新建事件包/ }).first().click();
   const input = page.locator('.draft input');
   await expect(input).toBeFocused();
@@ -553,5 +557,12 @@ test('手机宽度：不出现横向滚动；画布缩小时新建输入框仍�
   await input.press('Enter');
   await expect(card(page, '手机上新建')).toBeVisible();
   expect((await db(page)).events.map((e: any) => e.title)).toEqual(['手机上新建']);
+  // 顶栏右侧按钮靠右对齐；用户菜单里的“外观”不换行
+  const right = (await page.locator('.topbar-right').boundingBox())!;
+  expect(right.x + right.width).toBeGreaterThan(390 - 16);
+  await page.locator('.topbar .avatar').last().click();
+  const label = page.locator('.menu-row > span', { hasText: '外观' });
+  const lh = await label.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight) || 20);
+  expect((await label.boundingBox())!.height).toBeLessThan(lh * 1.5);
   await ctx.close();
 });

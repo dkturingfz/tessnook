@@ -169,6 +169,7 @@ button.avatar:hover { filter: brightness(1.08); }
 .dropdown button.on { background: var(--primary-soft); }
 .menu-note { padding: 6px 10px; font-size: 13px; }
 .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 6px 4px 10px; }
+.menu-row > span { white-space: nowrap; flex-shrink: 0; }
 .dropdown .menu-row .mode-switch button { width: auto; justify-content: center; font-size: 12px; padding: 3px 8px; }
 
 .main { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -646,7 +647,14 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
   .topbar { gap: 4px; padding: 0 8px; }
   .ws-switch { min-width: 0; flex: 1; }
   .ws-switch strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .topbar-right { margin-left: 0; gap: 0; }
+  .topbar-right { margin-left: auto; gap: 0; }
   .canvas-toolbar button { font-size: 0; gap: 0; }
   .auth-card { padding: 22px; }
+}
+
+/* 触屏设备（没有悬停、指针粗）隐藏只对键盘鼠标有意义的提示，换成触屏说明 */
+.only-coarse { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .only-fine { display: none !important; }
+  .only-coarse { display: inline; }
 }

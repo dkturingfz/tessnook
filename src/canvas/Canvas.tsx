@@ -348,7 +348,7 @@ export function Canvas() {
         <button className={view.grid ? 'on' : ''} title="显示背景网格" onClick={() => setView((v: any) => ({ ...v, grid: !v.grid }))}><Grid3x3 size={16} /></button>
         <button className={view.snap ? 'on' : ''} title="拖拽时吸附排列网格" onClick={() => setView((v: any) => ({ ...v, snap: !v.snap }))}><Magnet size={16} /></button>
         <button className={view.minimap ? 'on' : ''} title="小地图" aria-label="小地图" onClick={() => setView((v: any) => ({ ...v, minimap: !v.minimap }))}><MapIcon size={16} /></button>
-        <button title="快捷键与操作说明（?）" aria-label="快捷键与操作说明" onClick={() => setHelp(true)}><Keyboard size={16} /></button>
+        <button className="only-fine" title="快捷键与操作说明（?）" aria-label="快捷键与操作说明" onClick={() => setHelp(true)}><Keyboard size={16} /></button>
         {editable && layoutHistory.length > 0 && (
           <button title="撤销最近一次整理 (Ctrl+Z)" onClick={() => actions.undoLayout()}><Undo2 size={16} />撤销整理</button>
         )}
@@ -391,7 +391,8 @@ export function Canvas() {
       {Object.keys(regions).length > 0 && activeCount === 0 && editable && (
         <div className="start-hint" data-testid="start-hint">
           <strong>开始使用：</strong>双击画布任意位置创建事件包，放在哪个象限就代表它的优先级。
-          <span className="muted">也可以点左上角「新建事件包」或按 <kbd>N</kbd> 在中央新建，按 <kbd>?</kbd> 查看全部操作。</span>
+          <span className="muted only-fine">也可以点左上角「新建事件包」或按 <kbd>N</kbd> 在中央新建，按 <kbd>?</kbd> 查看全部操作。</span>
+          <span className="muted only-coarse">也可以点左上角的 <Plus size={12} aria-label="新建事件包" /> 在中央新建；双指可缩放画布。</span>
         </div>
       )}
       {help && <ShortcutsHelp onClose={() => setHelp(false)} />}
