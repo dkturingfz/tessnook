@@ -76,8 +76,21 @@ export function defineRepoContract(h: ContractHarness) {
     }, T * 3);
 
     describe('账户与工作空间', () => {
-      it('注册后即为登录状态', async () => {
-        expect(await alice.repo.currentUser()).toMatchObject({ id: alice.id, email: alice.email });
+      it('注册后即为登录状态，且带有注册时填写的显示名称', async () => {
+        expect(await alice.repo.currentUser()).toMatchObject({ id: alice.id, email: alice.email, display_name: 'alice' });
+      }, T);
+
+      it('另一会话用同一账户登录得到同一用户与显示名称；退出登录后为未登录状态', async () => {
+        const repo = h.newSession();
+        try {
+          const u = await repo.signIn(alice.email, `Contract-${run}-pw!`);
+          expect(u).toMatchObject({ id: alice.id, email: alice.email, display_name: 'alice' });
+          expect(await repo.currentUser()).toMatchObject({ id: alice.id, display_name: 'alice' });
+          await repo.signOut();
+          expect(await repo.currentUser()).toBeNull();
+        } finally {
+          if (h.dispose) h.dispose(repo);
+        }
       }, T);
 
       it('创建工作空间：创建者为 Owner，并附带一个默认四象限区域', async () => {

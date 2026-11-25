@@ -49,9 +49,18 @@ export class SupabaseRepo implements Repo {
   // ———————————————————— 账户 ————————————————————
 
   async currentUser(): Promise<User | null> {
-    // 打开页面时向认证服务器核实令牌（账户可能已被删除或令牌已吊销），而不是只信任本地缓存的会话
-    const { data } = await this.sb.auth.getUser();
-    return data.user ? this.withProfile(data.user) : null;
+    // 打开页面时向认证服务器核实令牌（账户可能已被删除或令牌已吊销），而不是只信任本地缓存的会话。
+    // 资料查询用本地会话里的用户 id 与核实并行（省一次往返）；核实结果为准，不一致时丢弃资料。
+    const { data: local } = await this.sb.auth.getSession();
+    const localId = local.session?.user.id;
+    if (!localId) return null; // 本地没有会话：未登录，无需请求服务器
+    const [{ data }, profile] = await Promise.all([
+      this.sb.auth.getUser(),
+      this.sb.from('profiles').select('*').eq('id', localId).maybeSingle(),
+    ]);
+    if (!data.user) return null;
+    if (data.user.id !== localId) return this.withProfile(data.user);
+    return { id: data.user.id, email: data.user.email ?? '', display_name: profile.data?.display_name ?? data.user.email ?? '' };
   }
 
   /** 补上资料表中的显示名称 */
