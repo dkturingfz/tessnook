@@ -12,6 +12,16 @@
 
 > 用空间组织注意力，用事件包组织工作，用看板推进执行。
 
+## 功能
+
+- **空间画布**：无限网格画布上的四象限区域，可移动、缩放（区域内的卡片按比例跟随）、建多个；轴可选「重要性 × 紧急性」「价值 × 投入」「影响 × 信心」或自定义。
+- **事件包**：双击、按 `N` 或点「新建事件包」创建；拖到哪个象限就代表哪种优先级；多选后网格整理（可撤销）、堆叠、批量完成或归档。
+- **看板**：点击事件包在右侧打开 Trello 式看板（列表、任务、检查清单、负责人、截止日期、标签），三种宽度模式。
+- **截止日期提醒**：逾期提醒；不紧急象限中临近截止的事项建议移到紧急象限，一键移动并可撤销；铃铛汇总全部提醒。
+- **协作**：工作空间、邀请链接、Owner / Editor / Viewer 权限、实时同步（约 1 秒内）、在线状态与“谁在看”。
+- **数据**：归档中心与恢复、活动记录、全局搜索（支持键盘）、工作空间备份导出与导入。
+- **体验**：浅色 / 深色模式、断网时暂停编辑并自动恢复、新版本提示、错误兜底、快捷键（按 `?` 查看）、WCAG 2.1 AA 无障碍检查、平板与手机可用。
+
 ## 快速开始
 
 ```bash
@@ -23,7 +33,16 @@ npm run dev          # http://localhost:5173
 
 ### 连接 Supabase（云端模式）
 
-1. 新建 Supabase 项目，执行 `supabase/migrations/20261123000000_init.sql`（`supabase db push`，或整段粘贴到 SQL Editor 运行）。
+1. 新建 Supabase 项目，**按文件名顺序执行 `supabase/migrations/` 中的全部迁移**（`supabase db push` 会自动完成；手动时依次粘贴到 SQL Editor 运行）。每个迁移都可以重复执行：
+
+   | 迁移 | 内容 |
+   |---|---|
+   | `20261123000000_init.sql` | 表结构、复合外键、RLS、触发器、事务性 RPC、Realtime 发布 |
+   | `20261123010000_table_grants.sql` | 显式的表级授权（新建的 Supabase 项目不再默认授予） |
+   | `20261124000000_resize_region.sql` | 区域缩放的原子操作 `resize_region` |
+   | `20261125000000_region_axes.sql` | 区域轴模板（`template`、`axis_config`） |
+   | `20261126000000_account_deletion.sql` | 允许删除用户账户：引用置空、自动提升 Owner、清理无人空间 |
+
 2. 复制 `.env.example` 为 `.env.local`，填入 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`（Project Settings → API）。
 3. `npm run dev`。前端会自动切换为 `SupabaseRepo`。
 4. 验证云端模式（测试期间需在 Authentication → Sign In / Providers → Email 关闭 "Confirm email"）：
@@ -33,6 +52,13 @@ npm run dev          # http://localhost:5173
    ```
 
    脚本会以 3 个一次性账户检查认证、RLS 隔离、角色权限、事务 RPC、版本冲突、邀请、Realtime 推送、在线状态和成员移除后的推送撤销，结束时删除测试工作空间。
+   还可以用 `npm run test:contract:supabase` 对项目运行完整的后端契约测试。
+
+   测试会留下 `@example.com` 结尾的一次性账户，可在 SQL Editor 中清理（需已执行账户删除迁移）：
+
+   ```sql
+   delete from auth.users where email like '%@example.com' and email not like 'tessnook.demo.%';
+   ```
 
 ### 部署到 Cloudflare Workers
 
