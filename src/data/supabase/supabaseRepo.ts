@@ -49,16 +49,22 @@ export class SupabaseRepo implements Repo {
   // ———————————————————— 账户 ————————————————————
 
   async currentUser(): Promise<User | null> {
+    // 打开页面时向认证服务器核实令牌（账户可能已被删除或令牌已吊销），而不是只信任本地缓存的会话
     const { data } = await this.sb.auth.getUser();
-    if (!data.user) return null;
-    const { data: p } = await this.sb.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
-    return { id: data.user.id, email: data.user.email ?? '', display_name: p?.display_name ?? data.user.email ?? '' };
+    return data.user ? this.withProfile(data.user) : null;
+  }
+
+  /** 补上资料表中的显示名称 */
+  private async withProfile(u: { id: string; email?: string }): Promise<User> {
+    const { data: p } = await this.sb.from('profiles').select('*').eq('id', u.id).maybeSingle();
+    return { id: u.id, email: u.email ?? '', display_name: p?.display_name ?? u.email ?? '' };
   }
 
   async signIn(email: string, password: string) {
-    const { error } = await this.sb.auth.signInWithPassword({ email, password });
+    // 登录响应里已经带有经服务器核实的用户，不再额外请求一次认证服务器
+    const { data, error } = await this.sb.auth.signInWithPassword({ email, password });
     fail(error);
-    return (await this.currentUser())!;
+    return this.withProfile(data.user!);
   }
 
   async signUp(email: string, password: string, displayName: string) {
@@ -66,8 +72,8 @@ export class SupabaseRepo implements Repo {
       email, password, options: { data: { display_name: displayName } },
     });
     fail(error);
-    if (!data.session) throw new Error('注册成功，请前往邮箱确认后再登录');
-    return (await this.currentUser())!;
+    if (!data.session || !data.user) throw new Error('注册成功，请前往邮箱确认后再登录');
+    return this.withProfile(data.user);
   }
 
   async signOut() {

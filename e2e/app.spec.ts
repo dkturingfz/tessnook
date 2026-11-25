@@ -632,3 +632,23 @@ test('首屏加载（生产构建）：后端分包随入口并行预加载；�
   expect(await run(false)).toBe(true);
   expect(await run(true)).toBe(false);
 });
+
+test('刷新后自动打开上次的工作空间；上次的空间已不可用时不报错，回退到按列表打开', async ({ page }) => {
+  await signUp(page, 'R', 'reopen@x.com');
+  await page.getByLabel('新工作空间名称').fill('甲');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.locator('.region')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.region')).toBeVisible();
+  await expect(page.locator('.ws-switch')).toContainText('甲');
+  // 记住的“上次空间”已不存在（例如已被移出）：不出现错误提示，按列表打开唯一的空间
+  await page.evaluate(() => {
+    const p = JSON.parse(localStorage.getItem('tessnook:prefs') || '{}');
+    localStorage.setItem('tessnook:prefs', JSON.stringify({ ...p, lastWorkspace: '00000000-0000-0000-0000-000000000000' }));
+  });
+  await page.reload();
+  await expect(page.locator('.region')).toBeVisible();
+  await expect(page.locator('.ws-switch')).toContainText('甲');
+  await page.waitForTimeout(500);
+  await expect(page.locator('.toast.error, .toast-error, [data-kind=error]')).toHaveCount(0);
+});

@@ -128,7 +128,8 @@ export interface AppState extends Data {
   signUp(email: string, password: string, name: string): Promise<void>;
   signOut(): Promise<void>;
   refreshWorkspaces(): Promise<void>;
-  openWorkspace(id: ID): Promise<void>;
+  /** quiet：自动打开上次的工作空间时使用，失败不提示（例如已被移出该空间），由调用方回退 */
+  openWorkspace(id: ID, opts?: { quiet?: boolean }): Promise<void>;
   createWorkspace(name: string): Promise<void>;
   /** 下载当前工作空间的备份文件 */
   exportBackup(): Promise<void>;
@@ -426,7 +427,7 @@ export const useStore = create<AppState>((set, get) => {
       set({ workspaces });
     },
 
-    async openWorkspace(id) {
+    async openWorkspace(id, opts) {
       set({ loading: true, openEventId: null, layoutHistory: [] });
       try {
         const snap = await backend().loadSnapshot(id);
@@ -445,7 +446,7 @@ export const useStore = create<AppState>((set, get) => {
         savePrefs({ lastWorkspace: id });
         subscribeWorkspace(id);
       } catch (e) {
-        get().toast((e as Error).message, 'error');
+        if (!opts?.quiet) get().toast((e as Error).message, 'error');
       } finally {
         set({ loading: false });
       }

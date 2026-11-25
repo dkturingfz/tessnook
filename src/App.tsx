@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useStore } from './store/store';
 import { AuthPage, WorkspacePicker } from './components/AuthPage';
 import { Toasts } from './components/Toasts';
@@ -19,6 +19,10 @@ function prefetchWorkspace(now: boolean) {
 }
 
 const INVITE_KEY = 'tessnook:pending-invite';
+
+function lastWorkspace(): string | undefined {
+  try { return JSON.parse(localStorage.getItem('tessnook:prefs') || '{}').lastWorkspace; } catch { return undefined; }
+}
 
 export function App() {
   const authChecked = useStore((s) => s.authChecked);
@@ -41,21 +45,39 @@ export function App() {
     if (authChecked) prefetchWorkspace(!!user);
   }, [authChecked, user]);
 
-  // 登录后：处理待接受邀请，否则自动打开上次的工作空间
+  // 登录后立即打开上次的工作空间，与获取工作空间列表并行（省掉一次往返）；
+  // 失败（例如已被移出该空间）不提示，由下面按列表选择的逻辑接手。有待接受的邀请时不抢先打开。
+  const userId = user?.id;
+  /** 回退逻辑已尝试打开过的空间：打开持续失败时不反复重试（每个用户会话各尝试一次） */
+  const fallbackTried = useRef(new Set<string>());
   useEffect(() => {
-    if (!user || workspace) return;
+    fallbackTried.current.clear();
+  }, [userId]);
+  useEffect(() => {
+    if (!userId || sessionStorage.getItem(INVITE_KEY)) return;
+    const last = lastWorkspace();
     const s = useStore.getState();
+    if (last && !s.workspace && !s.loading) s.openWorkspace(last, { quiet: true });
+  }, [userId]);
+
+  // 登录后：处理待接受邀请，否则按工作空间列表打开（上次的空间不可用时的回退）
+  useEffect(() => {
+    const s = useStore.getState();
+    // 读当前值而非渲染时的值：同一轮里上面的“立即打开”可能刚开始加载
+    if (!user || workspace || s.loading) return;
     const token = sessionStorage.getItem(INVITE_KEY);
     if (token) {
       sessionStorage.removeItem(INVITE_KEY);
       s.acceptInvitation(token);
       return;
     }
-    let last: string | undefined;
-    try { last = JSON.parse(localStorage.getItem('tessnook:prefs') || '{}').lastWorkspace; } catch { /* ignore */ }
+    const last = lastWorkspace();
     const target = workspaces.find((w) => w.id === last) ?? (workspaces.length === 1 ? workspaces[0] : undefined);
-    if (target) s.openWorkspace(target.id);
-  }, [user, workspace, workspaces]);
+    if (target && !fallbackTried.current.has(target.id)) {
+      fallbackTried.current.add(target.id);
+      s.openWorkspace(target.id);
+    }
+  }, [user, workspace, workspaces, loading]);
 
   if (!authChecked) return <div className="splash">加载中…</div>;
   if (!user) return <><AuthPage /><Toasts /></>;
