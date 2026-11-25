@@ -223,3 +223,34 @@ test('截止日期提醒：临近截止建议移到紧急象限，一键移动�
   await expect(page.locator('.bell-count')).toHaveCount(0);
   await expect(card(page, '写周报').locator('.alert-pill')).toHaveCount(0);
 });
+
+test('备份：导出为文件，再导入为新的工作空间，内容一致', async ({ page }, testInfo) => {
+  await signUp(page, 'B', 'bk@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '论文', 0.25, 0.3);
+  await createAt(page, '报销', 0.75, 0.75);
+  await card(page, '论文').click();
+  await page.getByTestId('list-col').nth(0).locator('input.add-task').fill('查文献');
+  await page.getByTestId('list-col').nth(0).locator('input.add-task').press('Enter');
+  await expect(page.getByTestId('task-card')).toHaveCount(1);
+  await page.getByRole('button', { name: '关闭看板' }).click();
+
+  await page.getByTestId('ws-switch').click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '导出备份' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^tessnook-.*\.json$/);
+  const file = testInfo.outputPath('backup.json');
+  await download.saveAs(file);
+
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId('ws-switch').click();
+  await page.getByTestId('import-backup-input').setInputFiles(file);
+  await expect(page.getByTestId('ws-switch')).toContainText('我的工作空间（导入）');
+  await expect(card(page, '论文')).toBeVisible();
+  await expect(card(page, '报销')).toBeVisible();
+  const d = await db(page);
+  expect(d.workspaces).toHaveLength(2);
+  const newWs = d.workspaces.find((w: any) => w.name.endsWith('（导入）'));
+  const evs = d.events.filter((e: any) => e.workspace_id === newWs.id);
+  expect(evs.map((e: any) => [e.title, e.quadrant]).sort()).toEqual([['报销', 'Q4'], ['论文', 'Q2']]);
+  expect(d.tasks.filter((t: any) => t.workspace_id === newWs.id).map((t: any) => t.title)).toEqual(['查文献']);
+});

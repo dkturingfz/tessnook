@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import { ROLE_LABEL } from '../domain/rules';
+import { ImportBackupButton } from './BackupButtons';
 
 /** 登录与选择空间页面的外框：左侧品牌区（取自横幅设计），右侧表单 */
 function AuthShell({ children }: { children: React.ReactNode }) {
@@ -97,6 +98,7 @@ export function WorkspacePicker() {
           <input value={name} onChange={(e) => setName(e.target.value)} />
           <button className="primary block">创建</button>
         </form>
+        <ImportBackupButton className="block" />
         <button className="link" onClick={() => s.signOut()}>退出登录</button>
       </div>
     </AuthShell>

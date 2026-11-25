@@ -84,6 +84,11 @@ export interface MemberApi {
 /** 单条记录的增删改（带乐观并发） */
 export interface RecordApi {
   insert<T extends TableName>(table: T, row: Partial<TableRows[T]> & { workspace_id: ID }): Promise<TableRows[T]>;
+  /**
+   * 批量插入同一张表的多行（行可以自带 id）。整批是一个事务：任一行无效则全部不生效。
+   * 用于从备份导入等场景。
+   */
+  insertMany<T extends TableName>(table: T, rows: (Partial<TableRows[T]> & { workspace_id: ID })[]): Promise<TableRows[T][]>;
   /** expectedVersion 不匹配时抛出 ConflictError */
   update<T extends TableName>(table: T, id: ID, patch: Partial<TableRows[T]>, expectedVersion: number): Promise<TableRows[T]>;
   /** 级联删除（事件包 → 列表 → 任务 → 检查项） */

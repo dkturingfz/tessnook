@@ -7,6 +7,7 @@ import { useStore } from '../store/store';
 import { avatarColor, initials } from './format';
 import { Avatar } from './Avatar';
 import { AlertsMenu } from './AlertsMenu';
+import { ExportBackupButton, ImportBackupButton } from './BackupButtons';
 
 export type Dialog = 'archive' | 'members' | 'activity' | null;
 
@@ -51,6 +52,8 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
               const name = prompt('新工作空间名称');
               if (name?.trim()) s.createWorkspace(name.trim());
             }}><Plus size={14} />新建工作空间</button>
+            <ImportBackupButton onDone={() => setWsMenu(false)} />
+            <ExportBackupButton onDone={() => setWsMenu(false)} />
             {can(role, 'renameWorkspace') && (
               <button onClick={() => {
                 setWsMenu(false);

@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EventPkg, ID, Quadrant, Snapshot } from '../../src/domain/types';
 import { fanOut, scaleWithRegion } from '../../src/domain/layout';
 import { ConflictError, PermissionError, type Repo } from '../../src/data/repo';
+import { exportBackup, importBackup } from '../../src/store/backup';
+import { validateBackup } from '../../src/domain/backup';
 
 export interface ContractHarness {
   name: string;
@@ -273,6 +275,76 @@ export function defineRepoContract(h: ContractHarness) {
         await alice.repo.restoreEvent(a.id);
         const acts = (await alice.repo.listActivity(ws, 50)).map((x) => x.action);
         for (const act of ['event.created', 'event.completed', 'event.archived', 'event.restored']) expect(acts).toContain(act);
+      }, T);
+    });
+
+    describe('批量插入', () => {
+      it('整批插入并保留给定的 id 与引用；任一行无效则整批不生效', async () => {
+        const { ws, region } = await workspace();
+        const a = await event(ws, region, 'a');
+        const ids = [crypto.randomUUID(), crypto.randomUUID()];
+        const rows = await alice.repo.insertMany('lists', ids.map((id, i) => ({ id, workspace_id: ws, event_id: a.id, title: `L${i}`, position: 5000 + i })));
+        expect(rows.map((r) => r.id)).toEqual(ids);
+        expect(rows.every((r) => r.version === 1)).toBe(true);
+        const before = (await alice.repo.loadSnapshot(ws)).lists.length;
+        await expect(alice.repo.insertMany('lists', [
+          { id: crypto.randomUUID(), workspace_id: ws, event_id: a.id, title: 'ok', position: 1 },
+          { id: crypto.randomUUID(), workspace_id: ws, event_id: crypto.randomUUID(), title: '引用不存在的事件包', position: 2 },
+        ])).rejects.toThrow();
+        expect((await alice.repo.loadSnapshot(ws)).lists.length).toBe(before);
+      }, T);
+
+      it('Viewer 不能批量插入', async () => {
+        const { ws, region } = await workspace();
+        const a = await event(ws, region, 'a');
+        await bob.repo.acceptInvitation(await alice.repo.inviteMember(ws, bob.email, 'viewer'));
+        await expect(bob.repo.insertMany('lists', [{ workspace_id: ws, event_id: a.id, title: 'x', position: 1 }])).rejects.toThrow();
+      }, T);
+    });
+
+    describe('备份', () => {
+      it('导出后导入为新工作空间：内容与结构一致，id 全部重新生成', async () => {
+        const { ws, region, snap } = await workspace();
+        await alice.repo.update('regions', region, { name: '源区域', template: 'value_effort' }, snap.regions[0].version);
+        const a = await event(ws, region, '甲', 100, 100, 'Q2');
+        const b2 = await event(ws, region, '乙', 300, 100, 'Q2');
+        const c = await event(ws, null, '区域外', 9000, 9000, null);
+        await alice.repo.createStack(ws, [a.id, b2.id], '一堆');
+        const l = (await alice.repo.loadSnapshot(ws)).lists.find((x) => x.event_id === c.id)!;
+        const t = await alice.repo.insert('tasks', { workspace_id: ws, event_id: c.id, list_id: l.id, title: '任务', position: 1, assignee_id: alice.id, due_date: '2030-01-02' });
+        await alice.repo.insert('checklist_items', { workspace_id: ws, event_id: c.id, task_id: t.id, text: '检查项', position: 1, done: true });
+        const cv = (await alice.repo.loadSnapshot(ws)).events.find((e) => e.id === c.id)!;
+        await alice.repo.archiveEvent(c.id, cv.version, true);
+
+        const backup = await exportBackup(alice.repo, ws);
+        expect(validateBackup(JSON.parse(JSON.stringify(backup)))).toBeNull();
+        const newWs = await importBackup(alice.repo, backup, { userId: alice.id, name: '导入的空间' });
+        workspaces.push({ owner: alice, id: newWs });
+        const src = await alice.repo.loadSnapshot(ws);
+        const dst = await alice.repo.loadSnapshot(newWs);
+
+        expect(dst.workspace.name).toBe('导入的空间');
+        for (const k of ['regions', 'stacks', 'events', 'lists', 'tasks', 'checklist_items'] as const) expect(dst[k].length).toBe(src[k].length);
+        const srcIds = new Set(['regions', 'stacks', 'events', 'lists', 'tasks', 'checklist_items'].flatMap((k) => (src as any)[k].map((r: any) => r.id)));
+        expect(['regions', 'stacks', 'events', 'lists', 'tasks', 'checklist_items'].flatMap((k) => (dst as any)[k]).some((r: any) => srcIds.has(r.id))).toBe(false);
+        expect(dst.regions[0]).toMatchObject({ name: '源区域', template: 'value_effort' });
+        const shape = (sn: typeof src) => sn.events.map((e) => ({
+          title: e.title, x: e.x, y: e.y, quadrant: e.quadrant, inRegion: !!e.region_id, status: e.status, archived: !!e.archived_at,
+          stack: e.stack_id ? sn.stacks.find((s) => s.id === e.stack_id)!.name : null,
+          lists: sn.lists.filter((x) => x.event_id === e.id).map((x) => x.title).sort(),
+          tasks: sn.tasks.filter((x) => x.event_id === e.id).map((x) => `${x.title}@${sn.lists.find((y) => y.id === x.list_id)!.title}:${x.due_date}:${x.assignee_id ? 'me' : '-'}`),
+          checklist: sn.checklist_items.filter((x) => x.event_id === e.id).map((x) => `${x.text}:${x.done}`),
+        })).sort((p, q) => p.title.localeCompare(q.title));
+        expect(shape(dst)).toEqual(shape(src));
+        expect(dst.events.find((e) => e.title === '区域外')).toMatchObject({ archived_by: alice.id, status: 'completed' });
+      }, T * 4);
+
+      it('无效的备份不会创建任何工作空间', async () => {
+        const before = (await alice.repo.listWorkspaces()).length;
+        const bad = { format: 'tessnook-backup', version: 1, exported_at: '', workspace: { name: 'x' }, regions: [], stacks: [], lists: [], tasks: [], checklist_items: [],
+          events: [{ id: 'e1', title: '坏', region_id: 'missing', stack_id: null }] } as any;
+        await expect(importBackup(alice.repo, bad, { userId: alice.id, name: 'x' })).rejects.toThrow('引用了不存在的区域');
+        expect((await alice.repo.listWorkspaces()).length).toBe(before);
       }, T);
     });
 

@@ -22,6 +22,8 @@ import {
 } from '../domain/types';
 import { positionBetween } from '../domain/layout';
 import { can, validateStack, type Action } from '../domain/rules';
+import { backupFileName, validateBackup, type Backup } from '../domain/backup';
+import { exportBackup, importBackup } from './backup';
 import { DEFAULT_LEAD_DAYS, type LeadDays } from '../domain/deadlines';
 // 只依赖后端契约（接口与错误类型），不依赖任何具体实现
 import { ConflictError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
@@ -109,6 +111,12 @@ export interface AppState extends Data {
   refreshWorkspaces(): Promise<void>;
   openWorkspace(id: ID): Promise<void>;
   createWorkspace(name: string): Promise<void>;
+  /** 下载当前工作空间的备份文件 */
+  exportBackup(): Promise<void>;
+  /** 从备份文件导入为新的工作空间 */
+  importBackupFile(file: File): Promise<void>;
+  /** 正在进行的长操作提示（如导入进度） */
+  busy: string | null;
   renameWorkspace(name: string): Promise<void>;
   deleteWorkspace(): Promise<void>;
   resync(): Promise<void>;
@@ -259,6 +267,7 @@ export const useStore = create<AppState>((set, get) => {
   return {
     ...emptyData(),
     backend: null,
+    busy: null,
     user: null,
     authChecked: false,
     workspaces: [],
@@ -332,6 +341,60 @@ export const useStore = create<AppState>((set, get) => {
         get().toast((e as Error).message, 'error');
       } finally {
         set({ loading: false });
+      }
+    },
+
+    async exportBackup() {
+      const ws = get().workspace;
+      if (!ws) return;
+      try {
+        const backup = await exportBackup(backend(), ws.id);
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = backupFileName(ws.name);
+        // 链接需要在文档中，浏览器才会采用 download 指定的文件名
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        get().toast(`已导出 ${backup.events.length} 个事件包、${backup.tasks.length} 个任务`, 'success');
+      } catch (e) {
+        get().toast(`导出失败：${(e as Error).message}`, 'error');
+      }
+    },
+
+    async importBackupFile(file) {
+      let backup: Backup;
+      try {
+        backup = JSON.parse(await file.text());
+      } catch {
+        get().toast('无法读取：这不是有效的 JSON 文件', 'error');
+        return;
+      }
+      const problem = validateBackup(backup);
+      if (problem) {
+        get().toast(`无法导入：${problem}`, 'error');
+        return;
+      }
+      const name = `${backup.workspace.name}（导入）`.slice(0, 120);
+      const summary = `${backup.events.length} 个事件包、${backup.tasks.length} 个任务`;
+      if (!confirm(`将备份「${backup.workspace.name}」（${summary}）导入为新的工作空间「${name}」？\n现有工作空间不会被修改。`)) return;
+      set({ busy: '正在导入…' });
+      try {
+        const id = await importBackup(backend(), backup, {
+          userId: get().user!.id, name,
+          onProgress: (done, total) => set({ busy: `正在导入… ${done}/${total}` }),
+        });
+        await get().refreshWorkspaces();
+        await get().openWorkspace(id);
+        get().toast(`已导入为新的工作空间「${name}」`, 'success');
+      } catch (e) {
+        get().toast(`导入失败，未创建任何工作空间：${(e as Error).message}`, 'error');
+      } finally {
+        set({ busy: null });
       }
     },
 

@@ -151,6 +151,15 @@ export class SupabaseRepo implements Repo {
     return data as TableRows[T];
   }
 
+  async insertMany<T extends TableName>(table: T, rows: (Partial<TableRows[T]> & { workspace_id: ID })[]) {
+    if (rows.length === 0) return [];
+    // 单条 INSERT 语句：整批原子生效
+    const clean = rows.map(({ version: _v, updated_at: _u, ...r }: any) => r);
+    const { data, error } = await this.sb.from(table).insert(clean).select();
+    fail(error);
+    return (data ?? []) as TableRows[T][];
+  }
+
   async update<T extends TableName>(table: T, id: ID, patch: Partial<TableRows[T]>, expectedVersion: number) {
     const { id: _i, workspace_id: _w, version: _v, created_at: _c, updated_at: _u, ...safe } = patch as any;
     // 乐观并发：仅当版本号仍为客户端预期值时才更新；版本由触发器递增

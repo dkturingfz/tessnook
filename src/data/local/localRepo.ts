@@ -343,6 +343,25 @@ export class LocalRepo implements Repo {
     return created;
   }
 
+  async insertMany<T extends TableName>(table: T, rows: (Partial<TableRows[T]> & { workspace_id: ID })[]) {
+    if (rows.length === 0) return [];
+    const ws = rows[0].workspace_id;
+    const created: TableRows[T][] = [];
+    this.tx(ws, (db, cs) => {
+      this.require(db, ws, 'edit');
+      for (const row of rows) {
+        if (row.workspace_id !== ws) throw new Error('批量插入的行必须属于同一个工作空间');
+        if (row.id && (db[table] as AnyRow[]).some((r) => r.id === row.id)) throw new Error('id 已存在');
+        this.checkRefs(db, table, row);
+        const r = { id: uuid(), created_at: now(), ...defaults(table), ...row, version: 1, updated_at: now() } as TableRows[T];
+        (db[table] as AnyRow[]).push(r);
+        cs.upserts.push({ table, row: { ...r } });
+        created.push(r);
+      }
+    });
+    return created;
+  }
+
   async update<T extends TableName>(table: T, id: ID, patch: Partial<TableRows[T]>, expectedVersion: number) {
     let updated!: TableRows[T];
     const ws = this.find(readDB(), table, id).workspace_id;
