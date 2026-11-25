@@ -805,3 +805,35 @@ test('区域重命名：他人改名后我再双击编辑，输入框显示最�
   expect((await db(A)).regions[0].name).toBe('本周重点');
   await expect(B.locator('.region-name')).toHaveText('本周重点');
 });
+
+test('弹窗焦点：Tab 只在弹窗内循环（叠放时只在最上层），关闭后焦点回到打开它的按钮', async ({ page }) => {
+  await signUp(page, 'F', 'focus@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.locator('.region')).toBeVisible();
+  const opener = page.getByTitle('成员与邀请');
+  await opener.focus();
+  await page.keyboard.press('Enter');
+  const members = page.getByRole('dialog', { name: '成员与邀请' });
+  await expect(members).toBeVisible();
+  const inside = (name: string) => page.evaluate((n) => !!document.activeElement?.closest(`[aria-label="${n}"]`), name);
+  expect(await inside('成员与邀请')).toBe(true);
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press(i % 3 === 2 ? 'Shift+Tab' : 'Tab');
+    expect(await inside('成员与邀请'), `第 ${i + 1} 次 Tab 后焦点跑出了弹窗`).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(members).toHaveCount(0);
+  await expect(opener).toBeFocused();
+
+  // 叠放：区域删除确认框
+  const del = page.getByTitle('删除区域（事件包保留在画布上）');
+  await del.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alertdialog', { name: '删除区域' })).toBeVisible();
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press('Tab');
+    expect(await inside('删除区域')).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(del).toBeFocused();
+});

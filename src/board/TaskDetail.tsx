@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckSquare, Square, Trash2, X } from 'lucide-react';
 import { askConfirm } from '../components/Ask';
+import { useDialogFocus } from '../components/useDialogFocus';
 import type { ID, Task } from '../domain/types';
 import { useStore } from '../store/store';
 
 export function TaskDetail({ taskId, readOnly, onClose }: { taskId: ID; readOnly: boolean; onClose(): void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
   const task = useStore((s) => s.tasks[taskId]);
   const lists = useStore((s) => s.lists);
   const members = useStore((s) => s.members);
@@ -41,7 +44,7 @@ export function TaskDetail({ taskId, readOnly, onClose }: { taskId: ID; readOnly
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal task-detail" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="任务详情">
+      <div ref={dialogRef} tabIndex={-1} className="modal task-detail" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="任务详情">
         <div className="modal-head">
           <button className="check big" disabled={readOnly} onClick={() => save({ done: !task.done })} aria-label="切换完成">
             {task.done ? <CheckSquare size={20} /> : <Square size={20} />}

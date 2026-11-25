@@ -4,6 +4,7 @@
 // <AskHost /> 挂在应用根部（main 包中，体积很小），登录页、空间选择页与工作区都可用。
 import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
+import { useDialogFocus } from './useDialogFocus';
 
 interface ConfirmOpts {
   title: string;
@@ -55,6 +56,8 @@ function AskDialog({ req }: { req: Request }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const okRef = useRef<HTMLButtonElement>(null);
   const settled = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
 
   const finish = (ok: boolean) => {
     if (settled.current) return;
@@ -85,6 +88,8 @@ function AskDialog({ req }: { req: Request }) {
   return (
     <div className="modal-backdrop ask-backdrop" onMouseDown={() => finish(false)}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="modal ask"
         role={t ? 'dialog' : 'alertdialog'}
         aria-modal="true"

@@ -681,3 +681,4 @@ button.danger-solid:hover:not(:disabled) { filter: brightness(0.94); background:
   :root:not([data-theme="light"]) button.danger-solid { color: #111615; }
 }
 :root[data-theme="dark"] button.danger-solid { color: #111615; }
+.modal:focus { outline: none; } /* 仅作为没有可聚焦元素时的兜底焦点，不显示外框 */

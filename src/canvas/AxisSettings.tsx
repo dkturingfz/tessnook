@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDialogFocus } from '../components/useDialogFocus';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { AxisTemplateId, CustomAxisConfig, Quadrant, Region } from '../domain/types';
@@ -25,6 +26,8 @@ function AxesPreview({ axes, compact }: { axes: Axes; compact?: boolean }) {
 }
 
 export function AxisSettings({ region, onClose }: { region: Region; onClose(): void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
   const updateRow = useStore((s) => s.updateRow);
   const current = axesOf(region);
   const [template, setTemplate] = useState<AxisTemplateId>(region.template ?? 'eisenhower');
@@ -61,7 +64,7 @@ export function AxisSettings({ region, onClose }: { region: Region; onClose(): v
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal axis-settings" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="区域轴设置">
+      <div ref={dialogRef} tabIndex={-1} className="modal axis-settings" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="区域轴设置">
         <div className="modal-head">
           <h2>轴设置 · {region.name}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="关闭"><X size={18} /></button>

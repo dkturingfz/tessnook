@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useDialogFocus } from '../components/useDialogFocus';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -25,6 +26,8 @@ const MOUSE: [string, string][] = [
 ];
 
 export function ShortcutsHelp({ onClose }: { onClose(): void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape' || e.key === '?') { e.stopPropagation(); onClose(); } };
     window.addEventListener('keydown', k, true);
@@ -32,7 +35,7 @@ export function ShortcutsHelp({ onClose }: { onClose(): void }) {
   }, [onClose]);
   return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal shortcuts" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="快捷键与操作说明">
+      <div ref={dialogRef} tabIndex={-1} className="modal shortcuts" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="快捷键与操作说明">
         <div className="modal-head">
           <h2>快捷键与操作说明</h2>
           <button className="icon-btn" onClick={onClose} aria-label="关闭"><X size={18} /></button>

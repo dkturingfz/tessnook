@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDialogFocus } from './useDialogFocus';
 import { ArchiveRestore, Copy, Eye, X } from 'lucide-react';
 import type { Activity, Role } from '../domain/types';
 import { can } from '../domain/rules';
@@ -9,6 +10,8 @@ import { Avatar } from './Avatar';
 import { askConfirm } from './Ask';
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose(): void; children: React.ReactNode; wide?: boolean }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -16,7 +19,7 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose(): v
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className={`modal ${wide ? 'wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
+      <div ref={dialogRef} tabIndex={-1} className={`modal ${wide ? 'wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
         <div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="关闭"><X size={18} /></button></div>
         {children}
       </div>
