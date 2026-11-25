@@ -8,7 +8,9 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#F7FAF9" />
-    <script src="/theme-init.js"></script>
+    <!-- 在首屏渲染前应用用户选择的外观，避免深色用户先闪一下浅色。内联以省掉一次阻塞请求；
+         内容安全策略按哈希放行这一段（改动它必须同步更新 public/_headers，见 tests/csp.test.ts）。 -->
+    <script>(function(){try{var t=JSON.parse(localStorage.getItem('tessnook:prefs')||'{}').theme;if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
     <title>Tessnook · 空间化协作看板</title>
     <meta name="description" content="A place for every idea。在四象限画布上用位置表达优先级，点击事件包即可在侧边打开看板推进任务，支持多人实时协作。" />
     <meta property="og:type" content="website" />
@@ -22,7 +24,13 @@
     <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 首屏占位：脚本下载与后端初始化期间立即可见，React 渲染时整体替换 -->
+      <div class="boot" role="status" aria-label="正在加载 Tessnook">
+        <img class="boot-logo" src="/favicon.svg" alt="" width="48" height="48" />
+        <span class="boot-name">Tessnook</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

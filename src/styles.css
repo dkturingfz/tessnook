@@ -658,3 +658,10 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
   .only-fine { display: none !important; }
   .only-coarse { display: inline; }
 }
+
+/* 首屏占位（index.html 中的静态标记） */
+.boot { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: var(--bg); color: var(--muted); }
+.boot-logo { animation: boot-pulse 1.4s ease-in-out infinite; }
+.boot-name { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+@keyframes boot-pulse { 50% { opacity: 0.55; transform: scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .boot-logo { animation: none; } }
