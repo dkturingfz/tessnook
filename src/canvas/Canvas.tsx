@@ -11,7 +11,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import {
-  Archive, CheckCircle2, Grid3x3, Layers, LayoutGrid, Magnet, Map as MapIcon, Plus, RotateCcw, SquareDashed, Undo2, X,
+  Archive, CheckCircle2, Grid3x3, Keyboard, Layers, LayoutGrid, Magnet, Map as MapIcon, Plus, RotateCcw, SquareDashed, Undo2, X,
 } from 'lucide-react';
 import type { ID, ItemMove } from '../domain/types';
 import { EVENT_W, cardCenter, locate } from '../domain/layout';
@@ -24,6 +24,7 @@ import { StackNode } from './nodes/StackNode';
 import { DraftNode } from './nodes/DraftNode';
 import { canvasActions } from './canvasActions';
 import { useAlerts } from '../store/alerts';
+import { ShortcutsHelp } from './ShortcutsHelp';
 
 const nodeTypes: NodeTypes = { region: RegionNode, event: EventNode, stack: StackNode, draft: DraftNode } as any;
 
@@ -65,6 +66,12 @@ export function Canvas() {
   const [menu, setMenu] = useState<Menu | null>(null);
   const [expandedStack, setExpandedStack] = useState<ID | null>(null);
   const [view, setView] = useState(loadView);
+  const [help, setHelp] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<Menu | null>(null);
+  menuRef.current = menu;
+  const nodesRef = useRef<AppNode[]>([]);
+  nodesRef.current = nodes;
   const busy = useRef(new Set<ID>());
   const dragVersions = useRef(new Map<ID, number>());
   const regionDrag = useRef<{ id: ID; x: number; y: number } | null>(null);
@@ -244,26 +251,48 @@ export function Canvas() {
   // Ctrl/Cmd+Z 撤销最近一次整理/移动（输入框中不拦截）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable) return;
+      if (document.querySelector('.modal-backdrop')) return; // 弹窗打开时不响应画布快捷键
+      const s = useStore.getState();
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        useStore.getState().undoLayout();
+        s.undoLayout();
+        return;
       }
       if (e.key === 'Escape') {
-        setMenu(null);
-        setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+        // 由近及远：菜单 → 选择 → 看板
+        if (menuRef.current) return setMenu(null);
+        if (nodesRef.current.some((n) => n.selected)) {
+          // 焦点在节点上时，画布库会自行取消选中（并移开焦点）；这里再取消会被它判定为“未选中”而重新选中
+          if (!t.closest('.react-flow__node')) setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+          return;
+        }
+        if (s.openEventId) s.openEvent(null);
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '?') { e.preventDefault(); setHelp(true); return; }
+      if (e.key === '/') { e.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid=search]')?.focus(); return; }
+      const k = e.key.toLowerCase();
+      if (k === 'f') { rf.fitView({ padding: 0.15, duration: 300, maxZoom: 1 }); return; }
+      if (k === 'n' && canEditSel(s)) {
+        e.preventDefault();
+        const r = wrapRef.current?.getBoundingClientRect();
+        if (r) setDraft(rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }));
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // 捕获阶段：先于画布库对已聚焦节点的 Esc 处理读取选中状态，保证“先取消选择、再关闭看板”
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
+  const activeCount = useMemo(() => Object.values(events).filter((e) => !e.archived_at).length, [events]);
   const clearSelection = () => setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
   const refs = selected.map((n) => ({ kind: n.type as 'event' | 'stack', id: n.id }));
 
   return (
-    <div className="canvas" onDoubleClick={onDoubleClick} onContextMenu={(e) => e.preventDefault()}>
+    <div className="canvas" ref={wrapRef} onDoubleClick={onDoubleClick} onContextMenu={(e) => e.preventDefault()}>
       <ReactFlow<AppNode>
         nodes={nodes}
         edges={[]}
@@ -307,7 +336,8 @@ export function Canvas() {
         <span className="sep" />
         <button className={view.grid ? 'on' : ''} title="显示背景网格" onClick={() => setView((v: any) => ({ ...v, grid: !v.grid }))}><Grid3x3 size={16} /></button>
         <button className={view.snap ? 'on' : ''} title="拖拽时吸附排列网格" onClick={() => setView((v: any) => ({ ...v, snap: !v.snap }))}><Magnet size={16} /></button>
-        <button className={view.minimap ? 'on' : ''} title="小地图" onClick={() => setView((v: any) => ({ ...v, minimap: !v.minimap }))}><MapIcon size={16} /></button>
+        <button className={view.minimap ? 'on' : ''} title="小地图" aria-label="小地图" onClick={() => setView((v: any) => ({ ...v, minimap: !v.minimap }))}><MapIcon size={16} /></button>
+        <button title="快捷键与操作说明（?）" aria-label="快捷键与操作说明" onClick={() => setHelp(true)}><Keyboard size={16} /></button>
         {editable && layoutHistory.length > 0 && (
           <button title="撤销最近一次整理 (Ctrl+Z)" onClick={() => actions.undoLayout()}><Undo2 size={16} />撤销整理</button>
         )}
@@ -341,12 +371,19 @@ export function Canvas() {
 
       {!can(role, 'edit') && <div className="readonly-badge">只读模式（Viewer）</div>}
 
-      {Object.keys(regions).length === 0 && Object.keys(events).length === 0 && editable && (
+      {Object.keys(regions).length === 0 && activeCount === 0 && editable && (
         <div className="empty-hint">
           <p>画布是空的。双击任意位置创建事件包，或</p>
           <button onClick={() => actions.createRegion(0, 0)}><Plus size={14} />创建一个四象限区域</button>
         </div>
       )}
+      {Object.keys(regions).length > 0 && activeCount === 0 && editable && (
+        <div className="start-hint" data-testid="start-hint">
+          <strong>开始使用：</strong>双击画布任意位置创建事件包，放在哪个象限就代表它的优先级。
+          <span className="muted">也可以按 <kbd>N</kbd> 在中央新建，按 <kbd>?</kbd> 查看全部操作。</span>
+        </div>
+      )}
+      {help && <ShortcutsHelp onClose={() => setHelp(false)} />}
 
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} onCreateAt={(p) => { setDraft(p); setMenu(null); }} />}
     </div>

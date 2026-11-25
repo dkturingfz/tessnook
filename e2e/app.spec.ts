@@ -306,3 +306,36 @@ test('无障碍：主要界面没有 WCAG A/AA 违规（浅色与深色）；任
     await ctx.close();
   }
 });
+
+test('新手引导与快捷键：开始提示、N 新建、? 说明、/ 搜索、Esc 由近及远关闭', async ({ page }) => {
+  await signUp(page, 'K', 'kb@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.getByTestId('start-hint')).toContainText('双击画布');
+
+  await page.locator('.react-flow__pane').click();
+  await page.keyboard.press('n');
+  await page.locator('.draft input').fill('键盘新建');
+  await page.keyboard.press('Enter');
+  await expect(card(page, '键盘新建')).toBeVisible();
+  await expect(page.getByTestId('start-hint')).toHaveCount(0);
+
+  await page.keyboard.press('?');
+  await expect(page.getByRole('dialog', { name: '快捷键与操作说明' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '快捷键与操作说明' })).toHaveCount(0);
+
+  await page.keyboard.press('/');
+  await expect(page.getByTestId('search')).toBeFocused();
+  await page.getByTestId('search').blur();
+
+  // 单击卡片：卡片被选中并打开看板。第一次 Esc 取消选择，第二次 Esc 关闭看板
+  await card(page, '键盘新建').click();
+  await expect(page.getByTestId('board-panel')).toBeVisible();
+  await expect(page.locator('.react-flow__node-event.selected')).toHaveCount(1);
+  await page.locator('.react-flow__pane').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.react-flow__node-event.selected')).toHaveCount(0);
+  await expect(page.getByTestId('board-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('board-panel')).toHaveCount(0);
+});
