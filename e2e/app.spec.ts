@@ -698,3 +698,17 @@ test('成员退出与被移出：回到空间选择页并说明原因，不出�
   await expect(B.getByLabel('新工作空间名称')).toBeVisible();
   await expect(errors(B)).toHaveCount(0);
 });
+
+test('连续快速新建：回车创建后立即在别处双击新建，每个只创建一次', async ({ page }) => {
+  await signUp(page, 'Q', 'quick@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  const body = (await page.locator('.region-body').boundingBox())!;
+  for (const [t, fx] of [['第一个', 0.2], ['第二个', 0.7], ['第三个', 0.45]] as const) {
+    await page.mouse.dblclick(body.x + body.width * fx, body.y + body.height * 0.25);
+    await page.fill('.draft input', t);
+    await page.keyboard.press('Enter'); // 不等卡片出现就立刻进行下一次
+  }
+  await expect(card(page, '第三个')).toBeVisible();
+  await page.waitForTimeout(500);
+  expect((await db(page)).events.map((e: any) => e.title).sort()).toEqual(['第一个', '第三个', '第二个'].sort());
+});

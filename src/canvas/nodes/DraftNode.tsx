@@ -7,6 +7,16 @@ import { EVENT_W } from '../../domain/layout';
 export function DraftNode({ data }: NodeProps<Node<DraftNodeData, 'draft'>>) {
   const [title, setTitle] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // 只结束一次：回车提交后、输入框卸载前，焦点可能被下一次双击移走而触发失焦，
+  // 失焦又会提交一次，导致同一个事件包被创建两次。
+  const done = useRef(false);
+  const finish = (submit: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const t = title.trim();
+    if (submit && t) data.onSubmit(t);
+    else data.onCancel();
+  };
   // 不用 autoFocus：React Flow 在测量完尺寸前会把新节点设为不可见，此时 focus() 会被浏览器忽略
   // （从工具栏按钮新建时尤其明显，焦点会停在按钮上，输入的文字无处可去）。逐帧重试直到聚焦成功。
   useEffect(() => {
@@ -36,10 +46,10 @@ export function DraftNode({ data }: NodeProps<Node<DraftNodeData, 'draft'>>) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && title.trim()) data.onSubmit(title.trim());
-          if (e.key === 'Escape') data.onCancel();
+          if (e.key === 'Enter' && title.trim()) finish(true);
+          if (e.key === 'Escape') finish(false);
         }}
-        onBlur={() => (title.trim() ? data.onSubmit(title.trim()) : data.onCancel())}
+        onBlur={() => finish(true)}
       />
     </div>
   );

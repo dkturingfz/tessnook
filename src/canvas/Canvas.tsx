@@ -82,7 +82,12 @@ export function Canvas() {
 
   const [nodes, setNodes] = useState<AppNode[]>([]);
   const [hover, setHover] = useState<{ region_id: ID | null; quadrant: any } | null>(null);
-  const [draft, setDraft] = useState<{ x: number; y: number } | null>(null);
+  const [draft, setDraftState] = useState<{ x: number; y: number; seq: number } | null>(null);
+  // 每个新建输入框都有自己的节点 id，保证是全新挂载的组件（见 DraftNode 的“只结束一次”）
+  const draftSeq = useRef(0);
+  const setDraft = useCallback((p: { x: number; y: number } | null) => {
+    setDraftState(p ? { x: p.x, y: p.y, seq: ++draftSeq.current } : null);
+  }, []);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [expandedStack, setExpandedStack] = useState<ID | null>(null);
   const [view, setView] = useState(loadView);
@@ -137,7 +142,7 @@ export function Canvas() {
     });
     if (draft) {
       out.push({
-        id: '__draft__', type: 'draft', position: { x: draft.x - EVENT_W / 2, y: draft.y - 20 }, zIndex: 2000,
+        id: `__draft__${draft.seq}`, type: 'draft', position: { x: draft.x - EVENT_W / 2, y: draft.y - 20 }, zIndex: 2000,
         draggable: false, selectable: false,
         data: { onSubmit: submitDraft, onCancel: () => setDraft(null) },
       });
