@@ -134,8 +134,8 @@ export interface AppState extends Data {
   /** 下载当前工作空间的备份文件 */
   exportBackup(): Promise<void>;
   /** 从备份文件导入为新的工作空间 */
-  /** confirm：导入前向用户确认（由界面层提供应用内的确认框；不提供时直接导入） */
-  importBackupFile(file: File, confirm?: (title: string, message: string) => Promise<boolean>): Promise<void>;
+  /** ask：导入前向用户确认（由界面层提供应用内的确认框；不提供时直接导入） */
+  importBackupFile(file: File, ask?: (title: string, message: string) => Promise<boolean>): Promise<void>;
   /** 正在进行的长操作提示（如导入进度） */
   busy: string | null;
   renameWorkspace(name: string): Promise<void>;
@@ -483,7 +483,7 @@ export const useStore = create<AppState>((set, get) => {
       }
     },
 
-    async importBackupFile(file, confirm) {
+    async importBackupFile(file, ask) {
       let backup: Backup;
       try {
         backup = JSON.parse(await file.text());
@@ -498,7 +498,7 @@ export const useStore = create<AppState>((set, get) => {
       }
       const name = `${backup.workspace.name}（导入）`.slice(0, 120);
       const summary = `${backup.events.length} 个事件包、${backup.tasks.length} 个任务`;
-      if (confirm && !(await confirm('导入备份', `将备份「${backup.workspace.name}」（${summary}）导入为新的工作空间「${name}」？\n现有工作空间不会被修改。`))) return;
+      if (ask && !(await ask('导入备份', `将备份「${backup.workspace.name}」（${summary}）导入为新的工作空间「${name}」？\n现有工作空间不会被修改。`))) return;
       set({ busy: '正在导入…' });
       try {
         const id = await importBackup(backend(), backup, {
