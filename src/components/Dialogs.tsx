@@ -53,8 +53,8 @@ export function ArchiveCenter({ onClose }: { onClose(): void }) {
   return (
     <Modal title="归档中心" onClose={onClose} wide>
       <div className="toolbar-row">
-        <input placeholder="搜索归档事件标题" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-        <select value={order} onChange={(e) => setOrder(e.target.value as any)}>
+        <input placeholder="搜索归档事件标题" aria-label="搜索归档事件标题" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+        <select aria-label="排序方式" value={order} onChange={(e) => setOrder(e.target.value as any)}>
           <option value="new">最近归档在前</option>
           <option value="old">最早归档在前</option>
         </select>
@@ -110,7 +110,7 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
               <div className="muted small">{m.email}</div>
             </div>
             {isOwner ? (
-              <select value={m.role} onChange={(e) => s.setMemberRole(m.user_id, e.target.value as Role)}>
+              <select aria-label={`${m.display_name} 的角色`} value={m.role} onChange={(e) => s.setMemberRole(m.user_id, e.target.value as Role)}>
                 <option value="owner">Owner</option>
                 <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
@@ -134,8 +134,8 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
         }}>
           <div className="section-title">邀请成员</div>
           <div className="toolbar-row">
-            <input type="email" placeholder="对方邮箱（留空则任何持链接者可加入）" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)}>
+            <input type="email" aria-label="对方邮箱" placeholder="对方邮箱（留空则任何持链接者可加入）" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <select aria-label="邀请的角色" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)}>
               <option value="editor">Editor</option>
               <option value="viewer">Viewer</option>
             </select>

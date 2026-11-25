@@ -57,7 +57,7 @@ export function AlertsMenu() {
 
   return (
     <div className="menu-anchor" ref={ref}>
-      <button className={`icon-btn bell ${list.length ? 'has-alerts' : ''}`} title="截止日期提醒" aria-label={`截止日期提醒（${list.length}）`}
+      <button className={`icon-btn bell ${list.length ? 'has-alerts' : ''}`} title="截止日期提醒" aria-label={`截止日期提醒 ${list.length} 条`}
         onClick={() => setOpen(!open)} data-testid="alerts-bell">
         <Bell size={18} />
         {list.length > 0 && <span className={`bell-count ${overdue.length ? 'overdue' : ''}`}>{list.length > 99 ? '99+' : list.length}</span>}

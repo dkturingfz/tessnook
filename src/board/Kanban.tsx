@@ -228,15 +228,21 @@ function ListColumn({ list, taskIds, readOnly, onOpenTask }: {
 
 function SortableTask({ task, readOnly, onOpen }: { task: Task; readOnly: boolean; onOpen(): void }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: T(task.id), disabled: readOnly });
+  // 鼠标：整张卡片可拖动、点击打开；键盘：用拖动手柄排序、用标题按钮打开。
+  // 外层不设 role，避免“按钮里嵌套按钮”。
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.35 : 1 }}
-      {...attributes} {...listeners} onClick={onOpen}>
-      <TaskCard task={task} />
+      onPointerDown={listeners?.onPointerDown as React.PointerEventHandler | undefined} onClick={onOpen}>
+      <TaskCard task={task} onOpen={onOpen}
+        dragHandle={readOnly ? undefined : { attributes, onKeyDown: listeners?.onKeyDown as ((e: React.KeyboardEvent) => void) | undefined }} />
     </div>
   );
 }
 
-function TaskCard({ task, overlay }: { task: Task; overlay?: boolean }) {
+function TaskCard({ task, overlay, onOpen, dragHandle }: {
+  task: Task; overlay?: boolean; onOpen?(): void;
+  dragHandle?: { attributes: Record<string, any>; onKeyDown?: (e: any) => void };
+}) {
   const members = useStore((s) => s.members);
   const checklist = useStore((s) => s.checklist_items);
   const updateRow = useStore((s) => s.updateRow);
@@ -252,7 +258,15 @@ function TaskCard({ task, overlay }: { task: Task; overlay?: boolean }) {
           onClick={(e) => { e.stopPropagation(); updateRow('tasks', task.id, { done: !task.done }); }}>
           {task.done ? <CheckSquare size={15} /> : <Square size={15} />}
         </button>
-        <span className="task-title">{task.title}</span>
+        {onOpen ? (
+          <button className="task-title" onClick={(e) => { e.stopPropagation(); onOpen(); }} title="打开任务详情">{task.title}</button>
+        ) : <span className="task-title">{task.title}</span>}
+        {dragHandle && (
+          <span className="task-grip" {...dragHandle.attributes} onKeyDown={dragHandle.onKeyDown}
+            aria-label={`拖动任务「${task.title}」：按空格键拿起，方向键移动，再按空格键放下`}>
+            <GripVertical size={13} />
+          </span>
+        )}
       </div>
       {(task.labels.length > 0 || task.due_date || items.length > 0 || assignee) && (
         <div className="task-meta">

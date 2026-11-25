@@ -95,7 +95,7 @@ export function WorkspacePicker() {
         )}
         <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) s.createWorkspace(name.trim()); }}>
           <div className="section-title">新建工作空间</div>
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+          <input aria-label="新工作空间名称" value={name} onChange={(e) => setName(e.target.value)} />
           <button className="primary block">创建</button>
         </form>
         <ImportBackupButton className="block" />

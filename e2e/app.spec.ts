@@ -276,3 +276,33 @@ test('断网时显示提示并暂停编辑，恢复后自动同步并可继续�
   await expect(node).toHaveClass(/draggable/);
   await createAt(page, '恢复后创建', 0.75, 0.75);
 });
+
+test('无障碍：主要界面没有 WCAG A/AA 违规（浅色与深色）；任务可用键盘打开', async ({ browser }) => {
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  for (const colorScheme of ['light', 'dark'] as const) {
+    const ctx = await browser.newContext({ colorScheme, viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    const check = async (include?: string) => {
+      let b = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
+      if (include) b = b.include(include);
+      const r = await b.analyze();
+      expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`)).toEqual([]);
+    };
+    await page.goto('/');
+    await check();
+    await signUp(page, 'A', `a11y-${colorScheme}@x.com`);
+    await check();
+    await page.getByRole('button', { name: '创建' }).click();
+    await createAt(page, '写周报', 0.25, 0.3);
+    await card(page, '写周报').click();
+    await page.getByTestId('list-col').nth(0).locator('input.add-task').fill('查文献');
+    await page.getByTestId('list-col').nth(0).locator('input.add-task').press('Enter');
+    await check();
+    // 键盘：聚焦任务标题按钮，回车打开详情
+    await page.getByRole('button', { name: '查文献', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog', { name: '任务详情' })).toBeVisible();
+    await check('.task-detail');
+    await ctx.close();
+  }
+});

@@ -90,7 +90,7 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
         <button className="icon-btn" title="归档中心" onClick={() => onDialog('archive')} data-testid="open-archive"><Archive size={18} /></button>
         <button className="icon-btn" title="成员与邀请" onClick={() => onDialog('members')}><Users size={18} /></button>
         <div className="menu-anchor">
-          <button className="avatar md me" style={{ background: avatarColor(user.id) }} onClick={() => setUserMenu(!userMenu)} title={user.email} aria-label="账户菜单">{initials(user.display_name)}</button>
+          <button className="avatar md me" style={{ background: avatarColor(user.id) }} onClick={() => setUserMenu(!userMenu)} title={user.email} aria-label={`${initials(user.display_name)} 账户菜单`}>{initials(user.display_name)}</button>
           {userMenu && (
             <div className="dropdown right" onMouseLeave={() => setUserMenu(false)}>
               <div className="menu-note">{user.display_name}<br /><span className="muted">{user.email}</span></div>
@@ -137,7 +137,7 @@ function SearchBox() {
   return (
     <div className="search menu-anchor">
       <Search size={15} />
-      <input ref={inputRef} placeholder="搜索事件包与任务" value={q} data-testid="search"
+      <input ref={inputRef} placeholder="搜索事件包与任务" aria-label="搜索事件包与任务" value={q} data-testid="search"
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}

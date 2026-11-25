@@ -45,7 +45,7 @@ export function TaskDetail({ taskId, readOnly, onClose }: { taskId: ID; readOnly
           <button className="check big" disabled={readOnly} onClick={() => save({ done: !task.done })} aria-label="切换完成">
             {task.done ? <CheckSquare size={20} /> : <Square size={20} />}
           </button>
-          <input className="title-input" data-field="title" value={title} disabled={readOnly}
+          <input className="title-input" aria-label="任务标题" data-field="title" value={title} disabled={readOnly}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => title.trim() && title !== task.title ? save({ title: title.trim() }) : setTitle(task.title)}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
