@@ -242,3 +242,33 @@ export function scaleMembersWithRegion(items: RegionMember[], from: Rect, to: Re
   }
   return out();
 }
+
+/**
+ * 在象限内为一张卡片找一个不与 occupied 重叠、离 p 最近的位置。
+ * 以 p 为中心按网格步长由近及远搜索；象限里实在没有空位时返回 p 本身。
+ * 结果的中心点始终在象限内，所以象限归属不变。
+ */
+export function nearestFreeSpot(p: Point, occupied: Point[], quadrant: Rect): Point {
+  const fits = (q: Point) => occupied.every((o) => !overlapping(q, o, SEPARATION_GAP));
+  const inside = (q: Point) => {
+    const c = cardCenter(q);
+    return c.x > quadrant.x && c.x < quadrant.x + quadrant.width && c.y > quadrant.y && c.y < quadrant.y + quadrant.height;
+  };
+  if (fits(p)) return p;
+  const stepX = (BOX_W + SEPARATION_GAP) / 2;
+  const stepY = (BOX_H + SEPARATION_GAP) / 2;
+  const maxRing = Math.ceil(Math.max(quadrant.width / stepX, quadrant.height / stepY)) + 1;
+  for (let ring = 1; ring <= maxRing; ring++) {
+    const candidates: Point[] = [];
+    for (let i = -ring; i <= ring; i++)
+      for (let j = -ring; j <= ring; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== ring) continue;
+        candidates.push({ x: Math.round(p.x + i * stepX), y: Math.round(p.y + j * stepY) });
+      }
+    const ok = candidates
+      .filter((q) => inside(q) && fits(q))
+      .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y) || a.y - b.y || a.x - b.x);
+    if (ok.length) return ok[0];
+  }
+  return p;
+}

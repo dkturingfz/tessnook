@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EVENT_W, GRID_GAP, cardCenter, fanOut, gridArrange, locate, positionBetween, quadrantOf, quadrantRect, REGION_HEADER_H, scaleWithRegion, scaleMembersWithRegion,
+  EVENT_W, GRID_GAP, cardCenter, fanOut, gridArrange, locate, positionBetween, quadrantOf, quadrantRect, REGION_HEADER_H, scaleWithRegion, scaleMembersWithRegion, nearestFreeSpot,
 } from '../src/domain/layout';
 import type { Region } from '../src/domain/types';
 
@@ -166,5 +166,32 @@ describe('区域缩小时推开新产生的重叠', () => {
   it('结果确定：同样输入得到同样结果', () => {
     const to = { x: 0, y: 0, width: 1100, height: 760 + REGION_HEADER_H };
     expect([...scaleMembersWithRegion(items, from, to)]).toEqual([...scaleMembersWithRegion(items, from, to)]);
+  });
+});
+
+describe('就近找空位（截止日期一键移动时避免压住已有卡片）', () => {
+  const quad = { x: 600, y: 36, width: 600, height: 400 };
+  const overlap = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) < EVENT_W && Math.abs(a.y - b.y) < 104;
+  const inQuad = (p: { x: number; y: number }) => {
+    const c = cardCenter(p);
+    return c.x > quad.x && c.x < quad.x + quad.width && c.y > quad.y && c.y < quad.y + quad.height;
+  };
+
+  it('没有冲突时原地放下', () => {
+    expect(nearestFreeSpot({ x: 700, y: 100 }, [{ x: 960, y: 300 }], quad)).toEqual({ x: 700, y: 100 });
+  });
+
+  it('有冲突时找最近的空位，不重叠且仍在该象限', () => {
+    const occupied = [{ x: 700, y: 100 }, { x: 710, y: 230 }];
+    const p = nearestFreeSpot({ x: 705, y: 110 }, occupied, quad);
+    for (const o of occupied) expect(overlap(p, o)).toBe(false);
+    expect(inQuad(p)).toBe(true);
+    expect(Math.hypot(p.x - 705, p.y - 110)).toBeLessThan(300);
+  });
+
+  it('象限已满时原地放下（不把卡片推出象限）', () => {
+    const occupied: { x: number; y: number }[] = [];
+    for (let x = 500; x < 1300; x += 60) for (let y = -60; y < 500; y += 40) occupied.push({ x, y });
+    expect(nearestFreeSpot({ x: 700, y: 100 }, occupied, quad)).toEqual({ x: 700, y: 100 });
   });
 });

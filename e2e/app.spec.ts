@@ -211,6 +211,7 @@ test('截止日期提醒：临近截止建议移到紧急象限，一键移动�
   await signUp(page, 'D', 'dl@x.com');
   await page.getByRole('button', { name: '创建' }).click();
   await createAt(page, '写周报', 0.25, 0.3);
+  await createAt(page, '已在紧急象限', 0.75, 0.3); // 正好占着平移后的目标位置
   await card(page, '写周报').click();
   await page.getByRole('button', { name: '详情' }).click();
   await page.locator('.event-details input[type=date]').fill(day(1));
@@ -222,6 +223,10 @@ test('截止日期提醒：临近截止建议移到紧急象限，一键移动�
   await expect(page.locator('.bell-count')).toHaveText('1');
   await pill.click();
   await expect.poll(async () => (await db(page)).events[0].quadrant).toBe('Q1');
+  {
+    const [a, b] = (await db(page)).events;
+    expect(Math.abs(a.x - b.x) >= 220 || Math.abs(a.y - b.y) >= 104, '不压住已有卡片').toBe(true);
+  }
   await expect(card(page, '写周报').locator('.alert-pill')).toHaveCount(0);
   await page.keyboard.press('Control+z');
   await expect.poll(async () => (await db(page)).events[0].quadrant).toBe('Q2');

@@ -8,6 +8,8 @@ import {
   cardCenter,
   gridArrange,
   locate,
+  nearestFreeSpot,
+  quadrantRect,
   scaleMembersWithRegion,
   type Point,
   type Rect,
@@ -74,7 +76,11 @@ export const canvasActions = {
     const target = ESCALATE_TO[e.quadrant];
     const region = s.regions[e.region_id];
     if (!target || !region) return;
-    const p = escalatePosition(e, region);
+    // 平移到紧急象限的对应位置；若与那里已有的卡片重叠，就近找空位
+    const occupied = members(region.id)
+      .filter((it) => it.row.id !== e.id && it.row.quadrant === target && !('archived_at' in it.row && it.row.archived_at))
+      .map((it) => it.row);
+    const p = nearestFreeSpot(escalatePosition(e, region), occupied, quadrantRect(region, target));
     await s.moveItems([{ kind: 'event', id: e.id, x: p.x, y: p.y, region_id: region.id, quadrant: target, version: e.version }], '按截止日期调整');
     s.toast(`已移至「${quadrantName(region, target)}」`, 'success', { label: '撤销', run: () => useStore.getState().undoLayout() });
   },
