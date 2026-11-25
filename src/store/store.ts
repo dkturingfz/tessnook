@@ -66,8 +66,18 @@ interface Prefs {
   leadDays: LeadDays;
   /** 已选择“暂不提醒”的提醒键（截止日期变化后键也会变化） */
   snoozed: string[];
+  /** 外观：跟随系统 / 浅色 / 深色 */
+  theme: Theme;
 }
-const DEFAULT_PREFS: Prefs = { panelWidth: 0.4, density: 'standard', leadDays: DEFAULT_LEAD_DAYS, snoozed: [] };
+const DEFAULT_PREFS: Prefs = { panelWidth: 0.4, density: 'standard', leadDays: DEFAULT_LEAD_DAYS, snoozed: [], theme: 'system' };
+export type Theme = 'system' | 'light' | 'dark';
+
+/** 应用外观：system 时移除 data-theme，由系统偏好决定 */
+function applyTheme(theme: Theme) {
+  if (typeof document === 'undefined') return;
+  if (theme === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', theme);
+}
 function loadPrefs(): Prefs {
   try {
     return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') };
@@ -104,6 +114,7 @@ export interface AppState extends Data {
   density: Density;
   leadDays: LeadDays;
   snoozed: string[];
+  theme: Theme;
   focusRequest: { id: ID; at: number } | null;
   toasts: Toast[];
   layoutHistory: LayoutSnapshot[];
@@ -140,6 +151,7 @@ export interface AppState extends Data {
   setPanelWidth(w: number): void;
   setDensity(d: Density): void;
   setLeadDays(d: LeadDays): void;
+  setTheme(t: Theme): void;
   snoozeAlert(key: string): void;
   focusEvent(id: ID): void;
   toast(text: string, kind?: Toast['kind'], action?: Toast['action']): void;
@@ -324,6 +336,7 @@ export const useStore = create<AppState>((set, get) => {
     density: prefs.density,
     leadDays: prefs.leadDays,
     snoozed: prefs.snoozed,
+    theme: prefs.theme,
     focusRequest: null,
     toasts: [],
     layoutHistory: [],
@@ -538,6 +551,11 @@ export const useStore = create<AppState>((set, get) => {
       const panelWidth = Math.min(0.85, Math.max(0.25, w));
       set({ panelWidth });
       savePrefs({ panelWidth });
+    },
+    setTheme(theme) {
+      applyTheme(theme);
+      set({ theme });
+      savePrefs({ theme });
     },
     setLeadDays(leadDays) {
       set({ leadDays });

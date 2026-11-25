@@ -20,6 +20,7 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
   const density = useStore((s) => s.density);
   const pending = useStore((s) => s.pendingOps);
   const backend = useStore((s) => s.backend);
+  const theme = useStore((s) => s.theme);
   const s = useStore.getState();
   const [wsMenu, setWsMenu] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
@@ -96,6 +97,15 @@ export function TopBar({ onDialog }: { onDialog(d: Dialog): void }) {
               <div className="menu-note">{user.display_name}<br /><span className="muted">{user.email}</span></div>
               <div className="menu-note muted">
                 {backend?.storage === 'browser' ? `${backend.label}：数据仅保存在本浏览器` : `${backend?.label ?? ''}：数据保存在服务端`}
+              </div>
+              <hr />
+              <div className="menu-row">
+                <span className="muted small">外观</span>
+                <div className="mode-switch" role="radiogroup" aria-label="外观">
+                  {([['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']] as const).map(([v, label]) => (
+                    <button key={v} role="radio" aria-checked={theme === v} className={theme === v ? 'on' : ''} onClick={() => s.setTheme(v)}>{label}</button>
+                  ))}
+                </div>
               </div>
               <hr />
               <button onClick={() => s.signOut()}><LogOut size={14} />退出登录</button>

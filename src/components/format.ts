@@ -29,8 +29,8 @@ export function relTime(iso: string) {
 
 export const EVENT_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
-/** 头像配色：取自品牌色的加深版本，保证白色文字可读 */
-const AVATAR_COLORS = ['#3E7C73', '#5A7FA3', '#7D68A0', '#B07A45', '#4D6B66', '#8A5A7A', '#5E7F4A', '#46617F'];
+/** 头像配色：取自品牌色的加深版本，每种颜色与白色文字的对比度都 ≥ 4.5（见 tests/format.test.ts） */
+export const AVATAR_COLORS = ['#3E7C73', '#557799', '#7D68A0', '#9B6B3D', '#4D6B66', '#8A5A7A', '#5C7C49', '#46617F'];
 export function avatarColor(id: string) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;

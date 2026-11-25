@@ -487,3 +487,46 @@ test('Esc 清空全部多选（焦点在某张卡片上时也是），不会把�
   await expect(page.getByTestId('stack-card')).toContainText('2');
   await expect(card(page, '乙')).toBeVisible();
 });
+
+test('外观：可手动选择浅色或深色，刷新后保持；跟随系统可恢复', async ({ browser }) => {
+  const bg = (page: import('@playwright/test').Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  // 系统为浅色时手动选择深色
+  const ctx = await browser.newContext({ colorScheme: 'light', viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await signUp(page, 'T', 'theme@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await expect(page.locator('.region')).toBeVisible();
+  const light = await bg(page);
+  await page.getByRole('button', { name: /账户菜单/ }).click();
+  await page.getByRole('radio', { name: '深色' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const dark = await bg(page);
+  expect(dark).not.toBe(light);
+  await page.reload();
+  await expect(page.locator('.region')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await bg(page)).toBe(dark);
+  // 跟随系统
+  await page.getByRole('button', { name: /账户菜单/ }).click();
+  await page.getByRole('radio', { name: '跟随系统' }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+  expect(await bg(page)).toBe(light);
+  await ctx.close();
+
+  // 系统为深色时手动选择浅色
+  const ctx2 = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1440, height: 900 } });
+  const p2 = await ctx2.newPage();
+  await signUp(p2, 'T2', 'theme2@x.com');
+  await p2.getByRole('button', { name: '创建' }).click();
+  await expect(p2.locator('.region')).toBeVisible();
+  expect(await bg(p2)).toBe(dark);
+  await p2.getByRole('button', { name: /账户菜单/ }).click();
+  await p2.getByRole('radio', { name: '浅色' }).click();
+  expect(await bg(p2)).toBe(light);
+  // 手动浅色下的无障碍检查
+  const { AxeBuilder } = await import('@axe-core/playwright');
+  await p2.keyboard.press('Escape');
+  const r = await new AxeBuilder({ page: p2 }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(r.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ') + ' ' + (n.any?.[0]?.message ?? '').slice(0, 90)).join(' | ')}`)).toEqual([]);
+  await ctx2.close();
+});
