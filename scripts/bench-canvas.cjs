@@ -2,6 +2,7 @@
 //   node scripts/bench-canvas.cjs 500
 // 输出：加载耗时、拖动 60 次的耗时、松手到稳定的耗时、帧时间 P50/P95、超过 50ms 的长帧数、打开看板耗时、JS 堆内存。
 // 参考值（500 个事件包，每个 3 列 4 任务）：帧时间 P95 ≈ 16.8ms，松手到稳定 ≈ 160ms，打开看板 ≈ 220ms。
+const { chromium } = require('playwright');
 const N = Number(process.argv[2] || 500);
 (async () => {
   const b = await chromium.launch();
