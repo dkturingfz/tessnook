@@ -221,6 +221,10 @@ test('截止日期提醒：临近截止建议移到紧急象限，一键移动�
   const pill = card(page, '写周报').locator('.alert-pill');
   await expect(pill).toContainText('建议移至 Q1');
   await expect(page.locator('.bell-count')).toHaveText('1');
+  await expect(page).toHaveTitle('(1) 我的工作空间 · Tessnook'); // 标签页标题与铃铛数量一致
+  await card(page, '写周报').click();
+  await expect(page).toHaveTitle('(1) 写周报 · 我的工作空间 · Tessnook');
+  await page.getByRole('button', { name: '关闭看板' }).click();
   await pill.click();
   await expect.poll(async () => (await db(page)).events[0].quadrant).toBe('Q1');
   {

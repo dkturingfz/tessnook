@@ -42,3 +42,13 @@ export function eventAccent(color: string | null, quadrant: string | null) {
   if (color) return color;
   return quadrant ? `var(--${quadrant.toLowerCase()}-solid)` : 'var(--accent-default)';
 }
+
+export const DEFAULT_TITLE = 'Tessnook · 空间化协作看板';
+
+/** 浏览器标签页标题：打开的事件包 · 工作空间 · Tessnook；有截止提醒时在前面显示数量（与铃铛一致） */
+export function pageTitle(p: { workspace?: string | null; event?: string | null; alerts?: number }): string {
+  if (!p.workspace) return DEFAULT_TITLE;
+  const parts = [p.event, p.workspace, 'Tessnook'].filter((x): x is string => !!x && x.trim() !== '');
+  const n = p.alerts ?? 0;
+  return `${n > 0 ? `(${n > 99 ? '99+' : n}) ` : ''}${parts.join(' · ')}`;
+}

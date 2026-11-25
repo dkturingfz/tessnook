@@ -9,6 +9,8 @@ import { Toasts } from './components/Toasts';
 import { ConnectionBanner } from './components/ConnectionBanner';
 import { UpdateNotice } from './components/UpdateNotice';
 import { ErrorBoundary, PanelError } from './components/ErrorBoundary';
+import { useAlerts } from './store/alerts';
+import { DEFAULT_TITLE, pageTitle } from './components/format';
 
 // 看板（含拖拽库）与弹窗再单独拆分；工作区打开后在空闲时预取看板，首次打开不需要等待
 const loadBoard = () => import('./board/BoardPanel');
@@ -21,6 +23,15 @@ export default function WorkspaceView() {
   const openEventId = useStore((s) => s.openEventId);
   const panelMode = useStore((s) => s.panelMode);
   const [dialog, setDialog] = useState<Dialog>(null);
+
+  // 标签页标题随工作空间、打开的事件包与截止提醒数量变化；离开工作区时恢复默认
+  const wsName = useStore((s) => s.workspace?.name);
+  const eventTitle = useStore((s) => (s.openEventId ? s.events[s.openEventId]?.title : undefined));
+  const alertCount = useAlerts().size;
+  useEffect(() => {
+    document.title = pageTitle({ workspace: wsName, event: eventTitle, alerts: alertCount });
+  }, [wsName, eventTitle, alertCount]);
+  useEffect(() => () => { document.title = DEFAULT_TITLE; }, []);
 
   useEffect(() => {
     const idle = (window as any).requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 1500));
