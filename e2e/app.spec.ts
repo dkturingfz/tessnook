@@ -417,3 +417,51 @@ test('新版本提示：线上入口脚本变化后，回到页面时提示刷�
   await page.getByRole('button', { name: '稍后' }).click();
   await expect(page.getByTestId('update-notice')).toHaveCount(0);
 });
+
+test('看板拖拽：列表内排序、拖入空列表、拖动手柄调整列表顺序、键盘移动列表', async ({ page }) => {
+  await signUp(page, 'KB', 'kanban@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, 'K', 0.25, 0.3);
+  await card(page, 'K').click();
+  await page.getByRole('button', { name: '宽屏模式' }).click();
+  const lists = page.getByTestId('list-col');
+  for (const t of ['一', '二', '三']) {
+    await lists.nth(0).locator('input.add-task').fill(t);
+    await lists.nth(0).locator('input.add-task').press('Enter');
+    await expect(page.getByTestId('task-card').filter({ hasText: t })).toBeVisible();
+  }
+  const state = async () => {
+    const d = await db(page);
+    return d.lists.sort((x: any, y: any) => x.position - y.position).map((l: any) =>
+      `${l.title}[${d.tasks.filter((t: any) => t.list_id === l.id).sort((x: any, y: any) => x.position - y.position).map((t: any) => t.title).join('')}]`).join(' ');
+  };
+  const dragTo = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await page.mouse.move(from.x, from.y); await page.mouse.down();
+    await page.mouse.move(from.x + 8, from.y + 4, { steps: 3 });
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    await page.mouse.up();
+  };
+  const center = async (l: import('@playwright/test').Locator, dx = 0, dy = 0) => {
+    const b = (await l.boundingBox())!;
+    return { x: b.x + b.width / 2 + dx, y: b.y + b.height / 2 + dy };
+  };
+  const task = (t: string) => page.getByTestId('task-card').filter({ hasText: t });
+
+  await dragTo(await center(task('三'), -60), await center(task('一'), -60, -12));
+  await expect.poll(state).toBe('待办[三一二] 进行中[] 已完成[]');
+
+  await dragTo(await center(task('二'), -60), await center(lists.nth(2).locator('.list-body')));
+  await expect.poll(state).toBe('待办[三一] 进行中[] 已完成[二]');
+
+  await dragTo(await center(lists.nth(2).locator('.grip')), await center(lists.nth(0).locator('.grip'), -60, 40));
+  await expect.poll(state).toBe('已完成[二] 待办[三一] 进行中[]');
+
+  // 键盘拖动：拿起后拖拽库需要先测量各列位置，按键之间留出与真实操作相当的间隔
+  await lists.nth(0).locator('.grip').focus();
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Space');
+  await expect.poll(state).toBe('待办[三一] 已完成[二] 进行中[]');
+});
