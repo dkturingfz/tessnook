@@ -15,7 +15,8 @@ export interface Workspace {
   id: ID;
   name: string;
   revision: number;
-  created_by: ID;
+  /** 创建者；创建者账户删除后为空 */
+  created_by: ID | null;
   created_at: string;
 }
 

@@ -231,4 +231,42 @@ set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
 do $$ begin assert (select count(*) from events) = 0, 'removed member loses access'; end $$;
 
 reset role;
+
+-- 删除账户：被引用过的用户也能删除；最后一个 Owner 被删除时自动提升成员；无人时删除空间
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-00000000000d', 'dora@example.com', '{}'),
+  ('00000000-0000-0000-0000-00000000000e', 'evan@example.com', '{}');
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000d';
+insert into ctx select 'ws2', (public.create_workspace('Dora 的空间')).id;
+insert into ctx select 'tok2', invite_member((select v::uuid from ctx where k='ws2'), 'evan@example.com', 'editor');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000e';
+select accept_invitation((select v from ctx where k='tok2')) is not null as joined;
+do $$
+declare ws uuid := (select v::uuid from ctx where k='ws2'); cs jsonb; e uuid;
+begin
+  cs := create_event(ws, 'Evan 的事件', 0, 0, null, null, false);
+  e := (cs->'upserts'->0->'row'->>'id')::uuid;
+  perform archive_event(e, (select version from events where id = e), false);
+  insert into ctx values ('e_evan', e);
+end $$;
+reset role;
+do $$
+declare ws uuid := (select v::uuid from ctx where k='ws2'); e uuid := (select v::uuid from ctx where k='e_evan');
+begin
+  -- 之前会因 accepted_by 外键失败（测试前文中 Bob 接受过邀请）
+  delete from auth.users where id = '00000000-0000-0000-0000-00000000000b';
+  -- 删除唯一的 Owner：Editor 自动成为 Owner，空间与数据保留
+  delete from auth.users where id = '00000000-0000-0000-0000-00000000000d';
+  assert (select role from workspace_members where workspace_id = ws and user_id = '00000000-0000-0000-0000-00000000000e') = 'owner', 'editor promoted';
+  assert (select created_by from workspaces where id = ws) is null, 'creator cleared';
+  assert exists (select 1 from activity_log where workspace_id = ws and action = 'member.role_changed');
+  -- 删除最后一名成员（其本人归档过事件）：空间被删除
+  delete from auth.users where id = '00000000-0000-0000-0000-00000000000e';
+  assert not exists (select 1 from workspaces where id = ws), 'empty workspace removed';
+  assert not exists (select 1 from events where id = e);
+  -- 原有空间不受影响
+  assert exists (select 1 from workspaces where id = (select v::uuid from ctx where k='ws'));
+end $$;
+
 select 'ALL DATABASE TESTS PASSED' as result;
