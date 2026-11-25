@@ -97,6 +97,10 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
   const [inviteRole, setInviteRole] = useState<Role>('editor');
   const [link, setLink] = useState<string | null>(null);
   const isOwner = can(role, 'manageMembers');
+  const ownerCount = members.filter((m) => m.role === 'owner').length;
+  /** 唯一的 Owner 不能把自己降级或退出（后端同样拒绝），界面上提前说明而不是操作后报错 */
+  const soleOwner = (userId: string) => ownerCount <= 1 && members.some((m) => m.user_id === userId && m.role === 'owner');
+  const SOLE_OWNER_HINT = '工作空间至少需要一个 Owner：请先把另一位成员设为 Owner';
 
   return (
     <Modal title="成员与邀请" onClose={onClose}>
@@ -110,7 +114,13 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
               <div className="muted small">{m.email}</div>
             </div>
             {isOwner ? (
-              <select aria-label={`${m.display_name} 的角色`} value={m.role} onChange={(e) => s.setMemberRole(m.user_id, e.target.value as Role)}>
+              <select
+                aria-label={`${m.display_name} 的角色`}
+                value={m.role}
+                disabled={soleOwner(m.user_id)}
+                title={soleOwner(m.user_id) ? SOLE_OWNER_HINT : undefined}
+                onChange={(e) => s.setMemberRole(m.user_id, e.target.value as Role)}
+              >
                 <option value="owner">Owner</option>
                 <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
@@ -119,7 +129,7 @@ export function MembersDialog({ onClose }: { onClose(): void }) {
             {(isOwner && m.user_id !== me.id) && (
               <button className="danger" onClick={() => confirm(`移除成员 ${m.display_name}？`) && s.removeMember(m.user_id)}>移除</button>
             )}
-            {m.user_id === me.id && !isOwner && (
+            {m.user_id === me.id && !soleOwner(me.id) && (
               <button className="danger" onClick={() => confirm('退出该工作空间？') && s.removeMember(me.id)}>退出</button>
             )}
           </div>

@@ -26,7 +26,7 @@ import { backupFileName, validateBackup, type Backup } from '../domain/backup';
 import { exportBackup, importBackup } from './backup';
 import { DEFAULT_LEAD_DAYS, type LeadDays } from '../domain/deadlines';
 // 只依赖后端契约（接口与错误类型），不依赖任何具体实现
-import { ConflictError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
+import { ConflictError, PermissionError, type BackendInfo, type RegionRect, type Repo, type Subscription } from '../data/repo';
 
 type Rows<T> = Record<ID, T>;
 export type PanelMode = 'standard' | 'wide' | 'focus';
@@ -200,7 +200,8 @@ function watchNetwork() {
     const s = useStore.getState();
     if (s.workspace) {
       await s.resync();
-      s.toast('网络已恢复，已同步最新数据', 'success');
+      // 同步时可能发现已被移出该空间（已回到选择页并另有说明），此时不再提示“已同步”
+      if (useStore.getState().workspace) s.toast('网络已恢复，已同步最新数据', 'success');
     }
   });
 }
@@ -321,6 +322,16 @@ export const useStore = create<AppState>((set, get) => {
     return latest !== undefined && latest > base && onlyOwnSince(id, base, latest) ? latest : base;
   }
 
+  /** 离开当前工作空间、回到空间选择页（删除、退出、被移出时共用） */
+  async function closeWorkspace(message?: string) {
+    sub?.close();
+    sub = null;
+    // 先刷新列表再清空当前空间，避免“自动打开上次空间”的逻辑看到已不可用的空间
+    await get().refreshWorkspaces().catch(() => undefined);
+    set({ workspace: null, role: null, ...emptyData(), openEventId: null, layoutHistory: [] });
+    if (message) get().toast(message);
+  }
+
   function snapshotLayout(label: string, ids: { kind: 'event' | 'stack'; id: ID }[]): LayoutSnapshot {
     const s = get();
     return {
@@ -347,10 +358,7 @@ export const useStore = create<AppState>((set, get) => {
         await get().refreshWorkspaces();
         const cur = get().workspace;
         if (cur && !get().workspaces.some((w) => w.id === cur.id)) {
-          get().toast('你已不再是该工作空间的成员', 'error');
-          sub?.close();
-          sub = null;
-          set({ workspace: null, role: null, ...emptyData(), openEventId: null });
+          await closeWorkspace(`你已不再是「${cur.name}」的成员`);
           return;
         }
         await get().resync();
@@ -523,11 +531,7 @@ export const useStore = create<AppState>((set, get) => {
       const ws = get().workspace!;
       const ok = await mutate('删除工作空间', async () => { await backend().deleteWorkspace(ws.id); return true; }, 'deleteWorkspace');
       if (!ok) return;
-      sub?.close();
-      sub = null;
-      // 先刷新列表再清空当前空间，避免“自动打开上次空间”的逻辑看到已删除的空间
-      await get().refreshWorkspaces();
-      set({ workspace: null, role: null, ...emptyData(), openEventId: null });
+      await closeWorkspace();
     },
 
     async inviteMember(email, role) {
@@ -556,8 +560,11 @@ export const useStore = create<AppState>((set, get) => {
       const ws = get().workspace!;
       const self = userId === get().user?.id;
       // 成员可以自行退出；移除他人需要管理权限
-      await mutate(self ? '退出' : '移除成员', () => backend().removeMember(ws.id, userId), self ? 'view' : 'manageMembers');
-      await get().resync();
+      const ok = await mutate(self ? '退出' : '移除成员', async () => { await backend().removeMember(ws.id, userId); return true; }, self ? 'view' : 'manageMembers');
+      if (!ok) return;
+      // 自己退出后已无权读取该空间：回到空间选择页，而不是尝试同步并报错
+      if (self) await closeWorkspace(`已退出「${ws.name}」`);
+      else await get().resync();
     },
 
     async listActivity(limit) {
@@ -586,7 +593,9 @@ export const useStore = create<AppState>((set, get) => {
           openEventId: s.openEventId && snap.events.some((e) => e.id === s.openEventId) ? s.openEventId : null,
         }));
       } catch (e) {
-        get().toast(`同步失败：${(e as Error).message}`, 'error');
+        // 被移出该空间（或空间已被删除）：回到空间选择页并说明原因
+        if (e instanceof PermissionError) await closeWorkspace(`你已不再是「${ws.name}」的成员`);
+        else get().toast(`同步失败：${(e as Error).message}`, 'error');
       }
     },
 

@@ -652,3 +652,49 @@ test('刷新后自动打开上次的工作空间；上次的空间已不可用�
   await page.waitForTimeout(500);
   await expect(page.locator('.toast.error, .toast-error, [data-kind=error]')).toHaveCount(0);
 });
+
+test('成员退出与被移出：回到空间选择页并说明原因，不出现“同步失败”；唯一 Owner 不能降级自己', async ({ context }) => {
+  const A = await context.newPage();
+  await signUp(A, 'Alice', 'leave-a@x.com');
+  await A.getByLabel('新工作空间名称').fill('课题组');
+  await A.getByRole('button', { name: '创建' }).click();
+  await expect(A.locator('.region')).toBeVisible();
+  // 唯一的 Owner：自己的角色不可改，也没有“退出”
+  await A.getByTitle('成员与邀请').click();
+  await expect(A.getByRole('combobox', { name: 'Alice 的角色' })).toBeDisabled();
+  await expect(A.locator('.member-row').getByRole('button', { name: '退出' })).toHaveCount(0);
+  await A.fill('.invite input[type=email]', 'leave-b@x.com');
+  await A.getByText('生成邀请链接').click();
+  const link = await A.locator('.invite-link code').innerText();
+  await A.keyboard.press('Escape');
+
+  const B = await context.newPage();
+  await signUp(B, 'Bob', 'leave-b@x.com', link);
+  await expect(B.locator('.region')).toBeVisible();
+  const errors = (p: typeof B) => p.locator('.toast.error');
+
+  // B 自己退出
+  B.once('dialog', (d) => d.accept());
+  await B.getByTitle('成员与邀请').click();
+  await B.locator('.member-row').getByRole('button', { name: '退出' }).click();
+  await expect(B.locator('.toast', { hasText: '已退出「课题组」' })).toBeVisible();
+  await expect(B.getByLabel('新工作空间名称')).toBeVisible(); // 回到空间选择页
+  await expect(errors(B)).toHaveCount(0);
+
+  // 用新的邀请链接重新加入（邀请只能使用一次），之后被 A 移出：B 实时回到选择页并得到说明
+  await A.getByTitle('成员与邀请').click();
+  await A.fill('.invite input[type=email]', 'leave-b@x.com');
+  await A.getByText('生成邀请链接').click();
+  const link2 = await A.locator('.invite-link code').innerText();
+  await A.keyboard.press('Escape');
+  await B.goto(link2);
+  await expect(B.locator('.region')).toBeVisible();
+  await A.reload();
+  await A.getByTitle('成员与邀请').click();
+  A.once('dialog', (d) => d.accept());
+  await A.locator('.member-row', { hasText: 'Bob' }).getByRole('button', { name: '移除' }).click();
+  await expect(A.locator('.member-row', { hasText: 'Bob' })).toHaveCount(0);
+  await expect(B.locator('.toast', { hasText: '你已不再是「课题组」的成员' })).toBeVisible({ timeout: 8000 });
+  await expect(B.getByLabel('新工作空间名称')).toBeVisible();
+  await expect(errors(B)).toHaveCount(0);
+});
