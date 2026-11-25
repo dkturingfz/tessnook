@@ -145,7 +145,7 @@ describe('store', () => {
   it('改完标题立即归档（标题尚未保存完）不会被误判为冲突', async () => {
     const id = await newEvent('J');
     const orig = repo.update.bind(repo);
-    repo.update = async (...a: Parameters<typeof orig>) => { await new Promise((r) => setTimeout(r, 30)); return orig(...a); }; // 模拟网络延迟
+    repo.update = (async (...a: Parameters<typeof orig>) => { await new Promise((r) => setTimeout(r, 30)); return orig(...a); }) as typeof orig; // 模拟网络延迟
     try {
       const n = S().toasts.filter((t) => t.kind === 'error').length;
       await Promise.all([S().updateRow('events', id, { title: 'J2' }), S().archiveEvent(id, true)]);
