@@ -8,7 +8,7 @@ import {
   cardCenter,
   gridArrange,
   locate,
-  scaleWithRegion,
+  scaleMembersWithRegion,
   type Point,
   type Rect,
 } from '../domain/layout';
@@ -100,14 +100,12 @@ export const canvasActions = {
   previewResize(id: ID, rect: Rect): Map<ID, Point> {
     const s = useStore.getState();
     const before = s.regions[id];
-    const out = new Map<ID, Point>();
-    if (!before) return out;
-    for (const it of members(id)) out.set(it.row.id, scaleWithRegion(it.row, before, rect));
-    return out;
+    if (!before) return new Map<ID, Point>();
+    return scaleMembersWithRegion(members(id).map((it) => it.row), before, rect);
   },
 
   /**
-   * 缩放结束：区域内条目按 scaleWithRegion 等比例移动（象限不变），
+   * 缩放结束：区域内条目按 scaleMembersWithRegion 等比例移动（象限不变，缩小时推开新产生的重叠），
    * 新覆盖到的、不属于任何区域的条目加入对应象限；与区域尺寸在同一事务中保存。
    */
   async resizeRegion(id: ID, p: Rect) {
@@ -118,8 +116,10 @@ export const canvasActions = {
     if (rect.x === before.x && rect.y === before.y && rect.width === before.width && rect.height === before.height) return;
     const after: Region = { ...before, ...rect };
     const moves: ItemMove[] = [];
-    for (const { kind, row } of members(id)) {
-      const q = scaleWithRegion(row, before, rect);
+    const inside = members(id);
+    const next = scaleMembersWithRegion(inside.map((it) => it.row), before, rect);
+    for (const { kind, row } of inside) {
+      const q = next.get(row.id)!;
       if (q.x !== row.x || q.y !== row.y) moves.push({ kind, id: row.id, x: q.x, y: q.y, region_id: id, quadrant: row.quadrant, version: row.version });
     }
     const regions = Object.values(s.regions).map((r) => (r.id === id ? after : r));

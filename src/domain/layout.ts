@@ -147,3 +147,98 @@ export function scaleWithRegion(p: Point, from: Rect, to: Rect): Point {
     y: Math.round(b.y + v * b.height - EVENT_H_NOMINAL / 2),
   };
 }
+
+/** 防重叠判定用的卡片外框（按标准密度的卡片估算） */
+const BOX_W = EVENT_W;
+const BOX_H = EVENT_H_STANDARD;
+/** 被推开的卡片之间至少留出的空隙 */
+const SEPARATION_GAP = 8;
+/** 推开卡片时与象限边缘保持的距离 */
+const EDGE_PAD = 8;
+
+export interface RegionMember extends Positioned {
+  quadrant: Quadrant | null;
+}
+
+const overlapping = (a: Point, b: Point, gap = 0) =>
+  Math.abs(a.x - b.x) < BOX_W + gap && Math.abs(a.y - b.y) < BOX_H + gap;
+
+/**
+ * 区域缩放后，区域内全部条目的新位置。
+ *
+ * 1. 每个条目先按 scaleWithRegion 等比例移动（相对位置不变）。
+ * 2. 只在缩小时：原本互不重叠、缩放后却叠在一起的条目会被轻轻推开，
+ *    但始终留在自己的象限内（尽量完整放进象限，放不下时至少保证中心在象限内），
+ *    所以象限归属不会因推开而改变。原本就重叠的条目（用户刻意叠放）保持原样。
+ *    空间实在不够时允许残留少量重叠，不会把卡片推出象限。
+ *
+ * 纯函数，结果确定；缩放预览与最终保存都用它，所见即所得。
+ */
+export function scaleMembersWithRegion(items: RegionMember[], from: Rect, to: Rect): Map<ID, Point> {
+  const pos = items.map((it) => scaleWithRegion(it, from, to));
+  const out = () => new Map(items.map((it, i) => [it.id, { x: Math.round(pos[i].x), y: Math.round(pos[i].y) }]));
+  const shrinking = to.width < from.width || to.height < from.height;
+  if (!shrinking || items.length < 2) return out();
+
+  const target = to as Region;
+  // 每个条目可移动的范围：完整放进象限；放不下就退而保证中心在象限内；
+  // 并且总包含它等比例缩放后的位置（不会因为夹紧而移动没有重叠的卡片）。
+  const bounds = items.map((it, i) => {
+    if (!it.quadrant) return null;
+    const q = quadrantRect(target, it.quadrant);
+    const axis = (start: number, size: number, box: number, nominal: number, cur: number) => {
+      let lo = start + EDGE_PAD;
+      let hi = start + size - box - EDGE_PAD;
+      if (lo > hi) {
+        lo = start - nominal / 2 + 1;
+        hi = start + size - nominal / 2 - 1;
+      }
+      return [Math.min(lo, cur), Math.max(hi, cur)] as const;
+    };
+    return {
+      x: axis(q.x, q.width, BOX_W, EVENT_W, pos[i].x),
+      y: axis(q.y, q.height, BOX_H, EVENT_H_NOMINAL, pos[i].y),
+    };
+  });
+  const clamp = (i: number) => {
+    const b = bounds[i];
+    if (!b) return;
+    pos[i] = {
+      x: Math.min(b.x[1], Math.max(b.x[0], pos[i].x)),
+      y: Math.min(b.y[1], Math.max(b.y[0], pos[i].y)),
+    };
+  };
+
+  const pairs: [number, number][] = [];
+  for (let i = 0; i < items.length; i++)
+    for (let j = i + 1; j < items.length; j++)
+      if (items[i].quadrant === items[j].quadrant && !overlapping(items[i], items[j])) pairs.push([i, j]);
+
+  for (let iter = 0; iter < 60; iter++) {
+    let moved = false;
+    for (const [i, j] of pairs) {
+      const a = pos[i];
+      const b = pos[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const ox = BOX_W + SEPARATION_GAP - Math.abs(dx);
+      const oy = BOX_H + SEPARATION_GAP - Math.abs(dy);
+      if (ox <= 0.5 || oy <= 0.5) continue;
+      moved = true;
+      // 沿需要移动更少的方向推开，两张卡片各让一半
+      if (ox < oy) {
+        const s = dx > 0 || (dx === 0 && items[i].x <= items[j].x) ? 1 : -1;
+        pos[i] = { x: a.x - (s * ox) / 2, y: a.y };
+        pos[j] = { x: b.x + (s * ox) / 2, y: b.y };
+      } else {
+        const s = dy > 0 || (dy === 0 && items[i].y <= items[j].y) ? 1 : -1;
+        pos[i] = { x: a.x, y: a.y - (s * oy) / 2 };
+        pos[j] = { x: b.x, y: b.y + (s * oy) / 2 };
+      }
+      clamp(i);
+      clamp(j);
+    }
+    if (!moved) break;
+  }
+  return out();
+}

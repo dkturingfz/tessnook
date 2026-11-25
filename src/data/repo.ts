@@ -119,7 +119,7 @@ export interface CommandApi {
   moveRegion(id: ID, x: number, y: number, version: number): Promise<ChangeSet>;
   /**
    * 调整区域位置与尺寸，并在同一事务中应用条目移动（语义同 moveItems，含版本检查）。
-   * 条目的新位置由前端按 domain/layout.scaleWithRegion 计算。
+   * 条目的新位置由前端按 domain/layout.scaleMembersWithRegion 计算。
    */
   resizeRegion(id: ID, rect: RegionRect, version: number, moves: ItemMove[]): Promise<ChangeSet>;
   deleteRegion(id: ID): Promise<ChangeSet>;

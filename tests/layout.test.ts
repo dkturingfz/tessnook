@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EVENT_W, GRID_GAP, cardCenter, fanOut, gridArrange, locate, positionBetween, quadrantOf, quadrantRect, REGION_HEADER_H, scaleWithRegion,
+  EVENT_W, GRID_GAP, cardCenter, fanOut, gridArrange, locate, positionBetween, quadrantOf, quadrantRect, REGION_HEADER_H, scaleWithRegion, scaleMembersWithRegion,
 } from '../src/domain/layout';
 import type { Region } from '../src/domain/types';
 
@@ -116,5 +116,55 @@ describe('画布节点复用（性能）', () => {
   it('正在拖动的节点保留本地位置', () => {
     const prev = [{ ...node('a', { t: 1 }, 50), dragging: true }];
     expect(mergeNodes(prev, [node('a', { t: 1 }, 0)], new Set())[0].position.x).toBe(50);
+  });
+});
+
+describe('区域缩小时推开新产生的重叠', () => {
+  const from = { x: 0, y: 0, width: 1600, height: 1200 + REGION_HEADER_H };
+  const H = 104;
+  const overlap = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) < EVENT_W && Math.abs(a.y - b.y) < H;
+  // Q2（左上）里三张原本互不重叠的卡片
+  const items = [
+    { id: 'a', x: 40, y: 80, quadrant: 'Q2' as const },
+    { id: 'b', x: 300, y: 120, quadrant: 'Q2' as const },
+    { id: 'c', x: 120, y: 300, quadrant: 'Q2' as const },
+    { id: 'd', x: 1000, y: 800, quadrant: 'Q4' as const },
+  ];
+
+  it('缩小后（空间足够时）不再重叠，且象限不变', () => {
+    const to = { x: 0, y: 0, width: 1100, height: 760 + REGION_HEADER_H };
+    // 纯等比例缩放时确实会重叠
+    const naive = items.map((it) => scaleWithRegion(it, from, to));
+    expect(overlap(naive[0], naive[1]) || overlap(naive[0], naive[2]) || overlap(naive[1], naive[2])).toBe(true);
+    const out = scaleMembersWithRegion(items, from, to);
+    const p = items.map((it) => out.get(it.id)!);
+    for (const [i, j] of [[0, 1], [0, 2], [1, 2]]) expect(overlap(p[i], p[j]), `${i}-${j}`).toBe(false);
+    const r2 = region(to);
+    items.forEach((it, i) => expect(quadrantOf(r2, cardCenter(p[i]))).toBe(it.quadrant));
+  });
+
+  it('空间不够时允许残留重叠，但绝不把卡片推出象限', () => {
+    const to = { x: 0, y: 0, width: 300, height: 200 + REGION_HEADER_H };
+    const out = scaleMembersWithRegion(items, from, to);
+    const r2 = region(to);
+    items.forEach((it) => expect(quadrantOf(r2, cardCenter(out.get(it.id)!))).toBe(it.quadrant));
+  });
+
+  it('原本就叠放的卡片保持叠放；放大时只做等比例移动', () => {
+    const stacked = [
+      { id: 'x', x: 100, y: 100, quadrant: 'Q2' as const },
+      { id: 'y', x: 110, y: 110, quadrant: 'Q2' as const },
+    ];
+    const to = { x: 0, y: 0, width: 1200, height: 900 + REGION_HEADER_H };
+    const out = scaleMembersWithRegion(stacked, from, to);
+    stacked.forEach((it) => expect(out.get(it.id)).toEqual(scaleWithRegion(it, from, to)));
+    const big = { x: 0, y: 0, width: 2400, height: 1800 + REGION_HEADER_H };
+    const out2 = scaleMembersWithRegion(items, from, big);
+    items.forEach((it) => expect(out2.get(it.id)).toEqual(scaleWithRegion(it, from, big)));
+  });
+
+  it('结果确定：同样输入得到同样结果', () => {
+    const to = { x: 0, y: 0, width: 1100, height: 760 + REGION_HEADER_H };
+    expect([...scaleMembersWithRegion(items, from, to)]).toEqual([...scaleMembersWithRegion(items, from, to)]);
   });
 });
