@@ -51,7 +51,7 @@ npm run dev          # http://localhost:5173
 npm run build && npx wrangler dev
 ```
 
-`public/_headers` 设置了安全响应头，并让带哈希的静态资源长期缓存；未命中的路径返回 `index.html`（单页应用模式）。上线后，请在 Supabase 的 Authentication → URL Configuration 中把 Site URL 设为网站地址。
+`index.html` 中的分享预览（Open Graph）使用网站的完整地址；绑定自定义域名后请同步修改 `og:url` 与 `og:image`。`public/_headers` 设置了安全响应头，并让带哈希的静态资源长期缓存；未命中的路径返回 `index.html`（单页应用模式）。上线后，请在 Supabase 的 Authentication → URL Configuration 中把 Site URL 设为网站地址。
 
 ## 测试
 
