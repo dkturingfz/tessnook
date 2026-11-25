@@ -115,6 +115,7 @@ supabase/
 
 - Supabase 云端模式已在真实项目和线上网站验证：后端契约测试、数据库安全检查和两名成员的实时协作流程均通过。
 - 正式上线前请重新开启 Supabase 的邮箱确认（Authentication → Sign In / Providers → Email → Confirm email），并配置站点 URL 与重定向地址。
+- 依赖安全：网站运行时依赖 `npm audit` 为 0 个漏洞；测试工具 vitest 3 的依赖链有已知漏洞（只在开发和测试时使用，不进入网站）。升级到 vitest 4.1.12 可以修复，但当前 npm 10.9.9 在解析其依赖时会内部出错（`edgesOut`），因此暂缓，待 npm 修复后升级。
 - `workspaces.revision` 由行级触发器递增；批量操作较多时可以改为语句级触发器以减少写放大。
 - 邀请目前只生成链接，没有发送邮件。如需邮件邀请，可以增加一个调用邮件服务的 Edge Function。
 
