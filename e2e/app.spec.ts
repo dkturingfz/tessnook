@@ -254,3 +254,25 @@ test('备份：导出为文件，再导入为新的工作空间，内容一致',
   expect(evs.map((e: any) => [e.title, e.quadrant]).sort()).toEqual([['报销', 'Q4'], ['论文', 'Q2']]);
   expect(d.tasks.filter((t: any) => t.workspace_id === newWs.id).map((t: any) => t.title)).toEqual(['查文献']);
 });
+
+test('断网时显示提示并暂停编辑，恢复后自动同步并可继续编辑', async ({ page, context }) => {
+  await signUp(page, 'N', 'net@x.com');
+  await page.getByRole('button', { name: '创建' }).click();
+  await createAt(page, '在线时创建', 0.25, 0.3);
+  const node = page.locator('.react-flow__node-event', { hasText: '在线时创建' });
+  await expect(node).toHaveClass(/draggable/);
+
+  await context.setOffline(true);
+  await expect(page.getByTestId('conn-banner')).toContainText('网络已断开');
+  await expect(node).not.toHaveClass(/draggable/);
+  await expect(page.locator('.readonly-badge')).toHaveCount(0); // 不是 Viewer，不显示错误的“只读（Viewer）”标记
+  const body = (await page.locator('.region-body').boundingBox())!;
+  await page.mouse.dblclick(body.x + body.width * 0.75, body.y + body.height * 0.75);
+  await expect(page.locator('.draft input')).toHaveCount(0); // 断网时不能新建
+
+  await context.setOffline(false);
+  await expect(page.getByTestId('conn-banner')).toHaveCount(0);
+  await expect(page.locator('.toast', { hasText: '网络已恢复' })).toBeVisible();
+  await expect(node).toHaveClass(/draggable/);
+  await createAt(page, '恢复后创建', 0.75, 0.75);
+});

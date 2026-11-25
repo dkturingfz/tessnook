@@ -83,6 +83,10 @@ function savePrefs(p: Partial<ReturnType<typeof loadPrefs>>) {
 
 export interface AppState extends Data {
   backend: BackendInfo | null;
+  /** 浏览器网络是否可用；断网时暂停编辑，恢复后自动同步 */
+  online: boolean;
+  /** 实时通道状态：重连期间仍可编辑，只是看不到他人的即时变化 */
+  realtime: 'connected' | 'reconnecting';
   user: User | null;
   authChecked: boolean;
   workspaces: WorkspaceWithRole[];
@@ -166,6 +170,22 @@ export interface AppState extends Data {
 }
 
 let repo: Repo | null = null;
+let networkWatched = false;
+
+/** 监听浏览器网络状态：断网时暂停编辑，恢复后以服务端数据校准 */
+function watchNetwork() {
+  if (networkWatched || typeof window === 'undefined') return;
+  networkWatched = true;
+  window.addEventListener('offline', () => useStore.setState({ online: false }));
+  window.addEventListener('online', async () => {
+    useStore.setState({ online: true });
+    const s = useStore.getState();
+    if (s.workspace) {
+      await s.resync();
+      s.toast('网络已恢复，已同步最新数据', 'success');
+    }
+  });
+}
 let sub: Subscription | null = null;
 
 /** 由组合根（main.tsx）在启动时注入后端实现 */
@@ -191,6 +211,10 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 export const useStore = create<AppState>((set, get) => {
   /** 统一的写操作包装：乐观更新失败时提示并以服务端数据校准 */
   async function mutate<T>(label: string, fn: () => Promise<T>, action: Action = 'edit'): Promise<T | null> {
+    if (!get().online) {
+      get().toast('网络已断开，暂时无法保存；恢复连接后再试', 'error');
+      return null;
+    }
     if (!can(get().role, action)) {
       get().toast(get().role === 'viewer' ? '当前为只读（Viewer）身份' : '没有执行该操作的权限', 'error');
       return null;
@@ -199,6 +223,12 @@ export const useStore = create<AppState>((set, get) => {
     try {
       return await enqueue(fn);
     } catch (e) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        // 请求途中断网：只提示一次，恢复后会自动同步
+        set({ online: false });
+        get().toast(`${label}未保存：网络已断开`, 'error');
+        return null;
+      }
       if (e instanceof ConflictError) {
         get().toast(`${label}失败：该内容刚被其他成员修改，已刷新为最新版本，请重试`, 'error');
       } else {
@@ -240,6 +270,7 @@ export const useStore = create<AppState>((set, get) => {
         resyncTimer = setTimeout(() => get().resync(), 150);
       },
       onPresence: (list) => set({ presence: list }),
+      onStatus: (realtime) => set({ realtime }),
       onMembersChanged: async () => {
         await get().refreshWorkspaces();
         const cur = get().workspace;
@@ -267,6 +298,8 @@ export const useStore = create<AppState>((set, get) => {
   return {
     ...emptyData(),
     backend: null,
+    online: typeof navigator === 'undefined' ? true : navigator.onLine,
+    realtime: 'connected',
     busy: null,
     user: null,
     authChecked: false,
@@ -290,6 +323,7 @@ export const useStore = create<AppState>((set, get) => {
     // ———————————————— 账户 / 空间 ————————————————
 
     async init() {
+      watchNetwork();
       const user = await backend().currentUser().catch(() => null);
       set({ user, authChecked: true });
       if (user) await get().refreshWorkspaces();
@@ -459,6 +493,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     async resync() {
+      if (!get().online) return;
       const ws = get().workspace;
       if (!ws) return;
       try {
@@ -733,7 +768,8 @@ export const useStore = create<AppState>((set, get) => {
 });
 
 // —— 常用派生查询 ——
-export const canEdit = (s: AppState) => can(s.role, 'edit');
+/** 能否编辑：有编辑权限且网络可用（断网时界面进入只读，避免“看起来改了但没保存”） */
+export const canEdit = (s: AppState) => s.online && can(s.role, 'edit');
 export const canDo = (action: Action) => (s: AppState) => can(s.role, action);
 
 export function eventProgress(s: Pick<AppState, 'tasks'>, eventId: ID) {

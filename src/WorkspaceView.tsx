@@ -6,6 +6,7 @@ import { useStore } from './store/store';
 import { Canvas } from './canvas/Canvas';
 import { TopBar, type Dialog } from './components/TopBar';
 import { Toasts } from './components/Toasts';
+import { ConnectionBanner } from './components/ConnectionBanner';
 
 // 看板（含拖拽库）与弹窗再单独拆分；工作区打开后在空闲时预取看板，首次打开不需要等待
 const loadBoard = () => import('./board/BoardPanel');
@@ -28,6 +29,7 @@ export default function WorkspaceView() {
     <ReactFlowProvider>
       <div className="app">
         <TopBar onDialog={setDialog} />
+        <ConnectionBanner />
         <main className={`main ${openEventId ? 'panel-open' : ''} panel-${panelMode}`}>
           <Canvas />
           {openEventId && (

@@ -55,6 +55,7 @@ export function Canvas() {
   const layoutHistory = useStore((s) => s.layoutHistory);
   const workspaceId = useStore((s) => s.workspace?.id);
   const editable = useStore(canEditSel);
+  const role = useStore((s) => s.role);
   const actions = useStore.getState();
   const alerts = useAlerts();
 
@@ -338,7 +339,7 @@ export function Canvas() {
         </div>
       )}
 
-      {!editable && <div className="readonly-badge">只读模式（Viewer）</div>}
+      {!can(role, 'edit') && <div className="readonly-badge">只读模式（Viewer）</div>}
 
       {Object.keys(regions).length === 0 && Object.keys(events).length === 0 && editable && (
         <div className="empty-hint">

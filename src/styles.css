@@ -527,6 +527,10 @@ button.alert-pill:disabled { opacity: 1; cursor: default; }
 .toast { background: var(--ink); color: var(--on-ink); padding: 11px 15px; border-radius: 12px; box-shadow: var(--shadow-lg); cursor: pointer; line-height: 1.45; }
 .toast.error { background: var(--danger); color: #fff; }
 .toast.success { background: var(--ok); color: #fff; }
+.conn-banner { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 13px; border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 19; }
+.conn-banner.offline { background: var(--warn-soft); color: var(--warn); font-weight: 500; }
+.conn-banner.reconnecting { background: var(--surface-2); color: var(--muted); }
+.spin { animation: spin 1.2s linear infinite; }
 .toast.busy { cursor: default; display: flex; align-items: center; gap: 10px; }
 .toast.busy::before { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

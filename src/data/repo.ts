@@ -139,6 +139,8 @@ export interface RealtimeHandlers {
   onPresence(list: PresenceState[]): void;
   /** 工作空间成员/角色变化（含自己被移除） */
   onMembersChanged(): void;
+  /** 实时通道状态（可选）：断开期间仍可通过普通请求读写，恢复后会触发 onResync */
+  onStatus?(status: 'connected' | 'reconnecting'): void;
 }
 
 export interface Subscription {

@@ -270,8 +270,12 @@ export class SupabaseRepo implements Repo {
 
     let pending: PresenceState | null = null;
     let joinedOnce = false;
+    let closed = false;
     channel.subscribe((status) => {
+      if (closed) return;
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') h.onStatus?.('reconnecting');
       if (status === 'SUBSCRIBED') {
+        h.onStatus?.('connected');
         // 首次订阅之后的每次重连都可能漏掉消息 → 以数据库快照校准
         if (joinedOnce) h.onResync();
         joinedOnce = true;
@@ -289,6 +293,7 @@ export class SupabaseRepo implements Repo {
         channel.track(state);
       },
       close: () => {
+        closed = true;
         win?.removeEventListener('online', onOnline);
         this.sb.removeChannel(channel);
       },
