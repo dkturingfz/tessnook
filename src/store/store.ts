@@ -244,7 +244,12 @@ export const useStore = create<AppState>((set, get) => {
     if (!guard(action)) return null;
     set((s) => ({ pendingOps: s.pendingOps + 1 }));
     try {
-      return await enqueue(fn);
+      // 在队列内记录自己写入产生的版本号，保证排在后面的写入执行时已能看到
+      return await enqueue(async () => {
+        const result = await fn();
+        recordOwn(result);
+        return result;
+      });
     } catch (e) {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         // 请求途中断网：只提示一次，恢复后会自动同步
@@ -274,15 +279,45 @@ export const useStore = create<AppState>((set, get) => {
 
   const rowOfMove = (m: ItemMove) => (m.kind === 'event' ? get().events[m.id] : get().stacks[m.id]);
 
+  /** 本客户端自己的写入产生的版本号（按行 id）。用于区分“版本变了是因为自己刚保存过”与“别人改过” */
+  const ownVersions = new Map<ID, Set<number>>();
+  function recordOwn(result: unknown) {
+    const rows: unknown[] =
+      result && typeof result === 'object' && Array.isArray((result as ChangeSet).upserts)
+        ? (result as ChangeSet).upserts.map((u) => u.row)
+        : [result];
+    for (const r of rows) {
+      if (!r || typeof r !== 'object') continue;
+      const { id, version } = r as { id?: unknown; version?: unknown };
+      if (typeof id !== 'string' || typeof version !== 'number') continue;
+      const set = ownVersions.get(id) ?? new Set<number>();
+      set.add(version);
+      ownVersions.set(id, set);
+    }
+  }
+  /** 从 base 到 latest 之间的每一次版本递增都来自自己的写入 */
+  function onlyOwnSince(id: ID, base: number, latest: number) {
+    const own = ownVersions.get(id);
+    if (!own) return base === latest;
+    for (let v = base + 1; v <= latest; v++) if (!own.has(v)) return false;
+    return true;
+  }
   /**
-   * 写入在队列中排队执行。调用方给的版本若就是调用时的本地版本，执行时改用届时的最新本地版本：
-   * 排在前面的自己的写入（改标题、上一次移动……）完成后版本已 +1，不应被当成冲突。
-   * 调用方有意给的旧版本（例如拖动开始时记下的）保持不变，用于发现期间他人的修改。
-   * 必须在本地乐观更新之前调用；返回的函数在队列内执行时调用。
+   * 写入在队列中排队执行。执行时若本地版本比调用方给的新，且新出来的版本全部来自自己的写入
+   * （刚放下又拖、改完标题立刻移动……），改用最新版本，不当成冲突；
+   * 只要其中有他人的修改，就保留调用方给的版本，让后端报告冲突。
+   * 返回的函数在队列内执行时调用。
    */
   function freshVersions(moves: ItemMove[]): () => ItemMove[] {
-    const current = new Set(moves.filter((m) => rowOfMove(m)?.version === m.version).map((m) => m.id));
-    return () => moves.map((m) => (current.has(m.id) ? { ...m, version: rowOfMove(m)?.version ?? m.version } : m));
+    return () =>
+      moves.map((m) => {
+        const latest = rowOfMove(m)?.version;
+        return latest !== undefined && latest > m.version && onlyOwnSince(m.id, m.version, latest) ? { ...m, version: latest } : m;
+      });
+  }
+  /** 单行版本的同一规则 */
+  function freshVersion(id: ID, base: number, latest: number | undefined) {
+    return latest !== undefined && latest > base && onlyOwnSince(id, base, latest) ? latest : base;
   }
 
   function snapshotLayout(label: string, ids: { kind: 'event' | 'stack'; id: ID }[]): LayoutSnapshot {
@@ -630,6 +665,7 @@ export const useStore = create<AppState>((set, get) => {
         const latest = (get()[table] as Rows<any>)[id];
         const row = await backend().update(table, id, patch, latest.version);
         get().apply({ upserts: [{ table, row }], deletes: [] });
+        return row;
       });
     },
 
@@ -683,9 +719,13 @@ export const useStore = create<AppState>((set, get) => {
 
     async moveRegion(id, x, y, version) {
       if (!guard('edit')) return;
+      const base = version;
       patchLocal('regions', id, { x, y });
-      const cs = await mutate('移动区域', () => backend().moveRegion(id, x, y, version));
-      if (cs) get().apply(cs);
+      await mutate('移动区域', async () => {
+        const cs = await backend().moveRegion(id, x, y, freshVersion(id, base, get().regions[id]?.version));
+        get().apply(cs);
+        return cs;
+      });
     },
 
     async resizeRegion(id, rect, moves, historyLabel = '调整区域尺寸') {
@@ -702,7 +742,7 @@ export const useStore = create<AppState>((set, get) => {
         });
       }
       const cs = await mutate('调整区域', async () => {
-        const out = await backend().resizeRegion(id, rect, get().regions[id]?.version ?? r.version, refresh());
+        const out = await backend().resizeRegion(id, rect, freshVersion(id, r.version, get().regions[id]?.version), refresh());
         get().apply(out);
         return out;
       });
@@ -747,7 +787,7 @@ export const useStore = create<AppState>((set, get) => {
       if (!e) return;
       patchLocal('events', id, { archived_at: new Date().toISOString() });
       const cs = await mutate('归档', async () => {
-        const out = await backend().archiveEvent(id, get().events[id]?.version ?? e.version, complete);
+        const out = await backend().archiveEvent(id, freshVersion(id, e.version, get().events[id]?.version), complete);
         get().apply(out);
         return out;
       }, 'archive');
@@ -834,11 +874,12 @@ export const useStore = create<AppState>((set, get) => {
       const t = get().tasks[taskId];
       if (!t) return;
       patchLocal('tasks', taskId, { list_id: listId, position });
-      const cs = await mutate('移动任务', () => {
+      await mutate('移动任务', async () => {
         const latest = get().tasks[taskId];
-        return backend().moveTask(taskId, listId, position, latest.version);
+        const cs = await backend().moveTask(taskId, listId, position, latest.version);
+        get().apply(cs); // 在队列内应用，下一次连续拖动读到的是新版本
+        return cs;
       });
-      if (cs) get().apply(cs);
     },
 
     async addChecklistItem(taskId, text) {

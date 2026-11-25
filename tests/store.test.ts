@@ -157,6 +157,34 @@ describe('store', () => {
     }
   });
 
+  it('放下后立刻再次拖动（拖动开始时上一次移动尚未保存完）不会被误判为冲突', async () => {
+    const id = await newEvent('L');
+    const orig = repo.moveItems.bind(repo);
+    repo.moveItems = (async (...a: Parameters<typeof orig>) => { await new Promise((r) => setTimeout(r, 30)); return orig(...a); }) as typeof orig;
+    try {
+      const n = S().toasts.filter((t) => t.kind === 'error').length;
+      const e0 = S().events[id];
+      const first = S().moveItems([{ kind: 'event', id, x: e0.x + 50, y: e0.y, region_id: region, quadrant: 'Q2', version: e0.version }]);
+      const dragStartVersion = S().events[id].version; // 第二次拖动开始：第一次还在保存中
+      await first; // 拖动过程中第一次保存完成，本地版本 +1
+      await S().moveItems([{ kind: 'event', id, x: e0.x + 100, y: e0.y, region_id: region, quadrant: 'Q2', version: dragStartVersion }]);
+      expect(S().toasts.filter((t) => t.kind === 'error').map((t) => t.text).slice(n)).toEqual([]);
+      expect(S().events[id].x).toBe(e0.x + 100);
+    } finally {
+      repo.moveItems = orig;
+    }
+  });
+
+  it('拖动期间他人修改了同一张卡片：仍然提示冲突', async () => {
+    const id = await newEvent('M');
+    const e0 = S().events[id];
+    const dragStartVersion = e0.version;
+    await other.update('events', id, { title: '别人改了' }, e0.version);
+    await S().resync();
+    await S().moveItems([{ kind: 'event', id, x: e0.x + 100, y: e0.y, region_id: region, quadrant: 'Q2', version: dragStartVersion }]);
+    expect(lastToast()).toContain('刚被其他成员修改');
+  });
+
   it('撤销调整区域尺寸：区域尺寸与区域内条目位置一起恢复，且撤销本身不再进入历史', async () => {
     const id = await newEvent('H');
     const r0 = { ...S().regions[region] };
